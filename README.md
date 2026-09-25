@@ -35,6 +35,12 @@
 - **中英文切换**：头部「中 / EN」一键切换，选择持久化保存
 - **隐私与本地化**：配置仅保存在本机浏览器 localStorage，不上传任何服务器
 
+### 架构与数据流转
+
+页面由本地服务同源托管，接口请求经本地反向代理转发至上游，API Key 只留在浏览器 localStorage。下图标注了画境在各步骤中扮演的角色：
+
+![画境数据流转图：画境本体（前端页面 + 本地服务）与第三方上游生图服务](images/architecture.png)
+
 ### 快速开始
 
 1. 前往 [GPTEAM 平台](https://portal.gpteamservices.com) 注册账号，在后台创建并复制你的 **API Key**（`sk-` 开头）
@@ -68,6 +74,7 @@ npm start
 ├── images/
 │   ├── index.png             # 首页主图
 │   ├── work.png              # 控制台界面截图（README 展示）
+│   ├── architecture.png      # 数据流转图（README 展示）
 │   ├── donate.png            # 微信赞赏码（README 展示）
 │   └── SeekerLo.jpg          # 作者头像
 ├── skills/
@@ -124,6 +131,12 @@ A pure front-end, zero-dependency AI image generation workbench: text-to-image, 
 - **Bilingual UI**: Switch between 中文 and English via the header toggle; preference persists
 - **Privacy-First**: All configuration stays in your browser's localStorage — nothing is uploaded
 
+### Architecture & Data Flow
+
+The page is served same-origin by the local service, API requests are forwarded upstream through the local reverse proxy, and the API Key stays in the browser's localStorage. The diagram below shows the role HuaJing plays at each step:
+
+![HuaJing data flow diagram: HuaJing itself (front-end page + local service) and the third-party upstream image service](images/architecture.png)
+
 ### Quick Start
 
 1. Sign up on the [GPTEAM portal](https://portal.gpteamservices.com), then create and copy your **API Key** (starts with `sk-`)
@@ -157,6 +170,7 @@ To use another port: `node main.js 9000`, and update **Local Proxy** to `http://
 ├── images/
 │   ├── index.png             # Homepage hero image
 │   ├── work.png              # Console screenshot (shown in the README)
+│   ├── architecture.png      # Data flow diagram (shown in the README)
 │   ├── donate.png            # WeChat reward QR code (shown in the README)
 │   └── SeekerLo.jpg          # Author avatar
 ├── skills/
