@@ -13,12 +13,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SeekerLo/huajing.git"
+    "url": "git+https://github.com/luoxjcode/HuaJing.git"
   },
   "bugs": {
-    "url": "https://github.com/SeekerLo/huajing/issues"
+    "url": "https://github.com/luoxjcode/HuaJing/issues"
   },
-  "homepage": "https://github.com/SeekerLo/huajing#readme",
+  "homepage": "https://github.com/luoxjcode/HuaJing#readme",
   "author": "SeekerLo",
   "keywords": [
     "ai",
