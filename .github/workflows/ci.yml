@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['18.x', '20.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Check local server syntax
+        run: node --check main.js
+
+      - name: Check inline script syntax
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const html = fs.readFileSync('ai-image-generator.html', 'utf8');
+          const blocks = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)];
+          if (blocks.length === 0) {
+            console.error('未在 ai-image-generator.html 中找到内联脚本');
+            process.exit(1);
+          }
+          for (const [i, m] of blocks.entries()) {
+            try {
+              new Function(m[1]);
+            } catch (e) {
+              console.error(`内联脚本 #${i + 1} 语法错误: ${e.message}`);
+              process.exit(1);
+            }
+          }
+          console.log(`内联脚本语法检查通过，共 ${blocks.length} 段`);
+          EOF
+
+      - name: Start server and smoke test
+        run: |
+          node main.js &
+          SERVER_PID=$!
+
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8787/ -o /tmp/page.html; then
+              break
+            fi
+            sleep 0.5
+          done
+
+          test -s /tmp/page.html
+          grep -q 'AI 生图工具' /tmp/page.html
+          curl -sf -o /dev/null http://127.0.0.1:8787/images/index.png
+          curl -sf -o /dev/null http://127.0.0.1:8787/images/SeekerLo.jpg
+
+          kill "$SERVER_PID"
+          echo "冒烟测试通过：首页与静态资源均可访问"

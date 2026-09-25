@@ -1,0 +1,1873 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>画境 · AI 生图工具</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#f6f2ea;
+  --panel:#fdfaf4;
+  --panel-2:#f3eee2;
+  --panel-3:#eae3d3;
+  --line:rgba(38,34,26,.13);
+  --line-2:rgba(38,34,26,.24);
+  --ink:#26221a; --sub:#6b6353; --dim:#a49a86;
+  --acc:#b3541e; --acc-soft:rgba(179,84,30,.1);
+  --ok:#2e7d4f; --err:#c0364a; --info:#3f6fb8;
+  --shadow:0 1px 2px rgba(38,34,26,.05),0 14px 34px rgba(38,34,26,.08);
+  --r-lg:16px; --r-md:12px; --r-sm:9px;
+  --serif:Georgia,"Noto Serif SC","Songti SC",serif;
+}
+body {
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  color:var(--ink); min-height:100vh;
+  background:
+    radial-gradient(1000px 460px at 8% -10%, rgba(179,84,30,.07), transparent 60%),
+    radial-gradient(900px 420px at 96% -6%, rgba(138,109,59,.06), transparent 58%),
+    var(--bg);
+  background-attachment:fixed;
+}
+::selection { background:rgba(179,84,30,.2); }
+::-webkit-scrollbar { width:9px; height:9px; }
+::-webkit-scrollbar-thumb { background:rgba(38,34,26,.18); border-radius:5px; border:2px solid var(--bg); }
+::-webkit-scrollbar-track { background:transparent; }
+
+.app { max-width:1440px; margin:0 auto; padding:0 24px 64px; }
+.hidden { display:none !important; }
+
+/* ---------- 顶栏 ---------- */
+header {
+  position:sticky; top:0; z-index:30; margin:0 -24px 22px; padding:0 24px;
+  display:flex; align-items:center; justify-content:space-between; height:64px;
+  background:rgba(246,242,234,.82); backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);
+  border-bottom:1px solid var(--line);
+}
+h1.brand { font-family:var(--serif); font-size:18px; font-weight:700; letter-spacing:.6px; display:flex; align-items:center; gap:10px; color:var(--ink); cursor:pointer; }
+h1.brand::before { content:''; width:14px; height:14px; border-radius:50%; background:var(--acc); flex:none; }
+.header-right { display:flex; align-items:center; gap:6px; }
+.nav-links { display:flex; gap:4px; margin-right:8px; }
+.nav-links a {
+  text-decoration:none; color:var(--sub); font-size:13.5px; padding:7px 15px; border-radius:999px;
+  transition:all .18s; cursor:pointer;
+}
+.nav-links a:hover { color:var(--ink); background:rgba(38,34,26,.06); }
+.nav-links a.active { color:var(--acc); background:var(--acc-soft); font-weight:600; }
+.lang-switch { display:flex; align-items:center; gap:2px; background:var(--panel-2); border:1px solid var(--line); border-radius:999px; padding:3px; }
+.lang-switch span { font-size:12px; padding:4px 10px; border-radius:999px; cursor:pointer; color:var(--sub); transition:all .18s; user-select:none; }
+.lang-switch span:hover { color:var(--ink); }
+.lang-switch span.active { color:var(--acc); background:var(--acc-soft); font-weight:600; }
+
+/* ---------- 控制台布局 ---------- */
+.layout { display:grid; grid-template-columns:408px minmax(0,1fr); gap:22px; align-items:start; }
+.side { position:sticky; top:86px; display:flex; flex-direction:column; gap:16px; }
+.side::-webkit-scrollbar { display:none; }
+.main { min-width:0; }
+
+.card {
+  background:var(--panel);
+  border:1px solid var(--line); border-radius:var(--r-lg);
+  padding:20px; box-shadow:var(--shadow);
+}
+.side .card { margin-bottom:0; }
+.card-title { font-family:var(--serif); font-size:15px; font-weight:700; letter-spacing:.5px; color:var(--ink); margin-bottom:16px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.card-title::before { content:''; width:3px; height:14px; border-radius:2px; background:var(--acc); flex:none; }
+.ct-text { white-space:nowrap; }
+.quota-pill {
+  font-family:-apple-system,"Segoe UI","PingFang SC",sans-serif; font-size:11.5px; font-weight:500;
+  color:var(--acc); background:var(--acc-soft); border:1px solid rgba(179,84,30,.3);
+  border-radius:999px; padding:2px 10px; cursor:pointer; white-space:nowrap;
+  transition:all .16s; user-select:none;
+}
+.quota-pill:hover { background:rgba(179,84,30,.18); transform:translateY(-1px); }
+.quota-pill.err { color:var(--err); background:rgba(192,54,74,.08); border-color:rgba(192,54,74,.3); }
+.quota-pill.loading { opacity:.55; pointer-events:none; }
+.conn-pill {
+  margin-left:auto; font-family:-apple-system,"Segoe UI","PingFang SC",sans-serif; font-size:11.5px; font-weight:500;
+  color:var(--dim); background:rgba(38,34,26,.05); border:1px solid var(--line-2);
+  border-radius:999px; padding:2px 10px; cursor:pointer; white-space:nowrap;
+  transition:all .16s; user-select:none;
+}
+.conn-pill::before { content:''; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--dim); margin-right:6px; vertical-align:1px; }
+.conn-pill:hover { background:rgba(38,34,26,.1); transform:translateY(-1px); }
+.conn-pill.ok { color:var(--ok); background:rgba(46,125,79,.1); border-color:rgba(46,125,79,.35); }
+.conn-pill.ok::before { background:var(--ok); box-shadow:0 0 6px rgba(46,125,79,.6); }
+.conn-pill.err { color:var(--err); background:rgba(192,54,74,.08); border-color:rgba(192,54,74,.3); }
+.conn-pill.err::before { background:var(--err); }
+.conn-pill.loading { opacity:.55; pointer-events:none; }
+.conn-pill + .quota-pill { margin-left:8px; }
+button.title-btn { margin-left:8px; border-radius:999px; background:transparent; border-color:transparent; color:var(--dim); }
+button.title-btn:hover { color:var(--acc); background:var(--acc-soft); border-color:transparent; }
+
+.field { margin-bottom:15px; }
+.field:last-child { margin-bottom:0; }
+label { display:block; font-size:12px; color:var(--sub); margin-bottom:7px; font-weight:500; letter-spacing:.4px; }
+input, select, textarea {
+  width:100%; padding:10px 13px; border:1px solid var(--line-2); border-radius:var(--r-sm);
+  font-size:13.5px; font-family:inherit; background-color:#fff; color:var(--ink);
+  transition:border-color .18s, box-shadow .18s;
+}
+input::placeholder, textarea::placeholder { color:var(--dim); }
+input:hover, select:hover, textarea:hover { border-color:rgba(38,34,26,.38); }
+input:focus, select:focus, textarea:focus {
+  outline:none; border-color:var(--acc);
+  box-shadow:0 0 0 3px rgba(179,84,30,.16);
+}
+select {
+  appearance:none; -webkit-appearance:none; cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6353' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 12px center; padding-right:32px;
+}
+select option { background:#fff; color:var(--ink); }
+textarea { resize:vertical; line-height:1.65; }
+.field-row { display:flex; gap:12px; }
+.field-row .field { flex:1; }
+.hint { font-size:12px; color:var(--dim); margin-top:12px; line-height:1.7; }
+.hint b { color:var(--sub); }
+
+/* ---------- 按钮 ---------- */
+button {
+  padding:9px 16px; border:1px solid transparent; border-radius:var(--r-sm); font-size:13.5px; cursor:pointer;
+  background:var(--panel-3); color:var(--ink); transition:all .18s;
+}
+button:hover { background:#e0d8c4; }
+button:active { transform:translateY(1px); }
+button.primary {
+  background:var(--ink); color:var(--paper, #f6f2ea); font-weight:600; letter-spacing:.4px;
+  box-shadow:0 4px 14px rgba(38,34,26,.22);
+}
+button.primary:hover { background:var(--acc); box-shadow:0 8px 22px rgba(179,84,30,.3); }
+button.ghost { background:transparent; color:var(--sub); border:1px solid var(--line-2); border-radius:999px; }
+button.ghost:hover { color:var(--acc); border-color:rgba(179,84,30,.5); background:var(--acc-soft); }
+button.small { padding:5px 12px; font-size:12px; border-radius:8px; border:1px solid var(--line); background:var(--panel-2); color:var(--sub); }
+button.small:disabled { opacity:0.5; cursor:not-allowed; background:var(--bg-2); color:var(--sub); }
+button.small:hover { border-color:var(--line-2); color:var(--ink); }
+button.primary.small { background:var(--ink); color:#f6f2ea; border-color:transparent; }
+button.primary.small:hover { background:var(--acc); }
+button:disabled { opacity:.4; cursor:not-allowed; }
+
+.settings-actions { display:flex; align-items:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line-2); flex-wrap:wrap; }
+#testResult { font-size:12.5px; color:var(--dim); margin-left:auto; }
+#testResult.ok { color:var(--ok); font-weight:500; }
+#testResult.fail { color:var(--err); }
+#capsResult { margin-top:12px; }
+#usageResult { margin-top:12px; }
+#settingsPanel > .hint { font-size:11.5px; margin-top:14px; padding-top:12px; border-top:1px dashed var(--line-2); }
+
+/* ---------- 额度面板 ---------- */
+.usage-box { margin-top:12px; font-size:13px; line-height:1.7; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:var(--r-md); padding:14px 15px; }
+.usage-box .u-err { color:var(--err); }
+.usage-box .u-title { display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.usage-box .u-title b { font-size:13.5px; }
+.usage-box .u-state { font-size:12px; padding:2px 10px; border-radius:999px; font-weight:500; }
+.usage-box .u-state.valid { background:rgba(46,125,79,.1); color:var(--ok); box-shadow:0 0 0 1px rgba(46,125,79,.28); }
+.usage-box .u-state.invalid { background:rgba(192,54,74,.08); color:var(--err); box-shadow:0 0 0 1px rgba(192,54,74,.25); }
+.usage-box .u-main { font-size:22px; font-weight:700; letter-spacing:.3px; margin:2px 0 10px; }
+.usage-box .u-main small { font-size:12.5px; font-weight:500; color:var(--dim); margin-left:8px; }
+.usage-box .u-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px 14px; }
+.usage-box .u-item { display:flex; justify-content:space-between; gap:8px; font-size:12.5px; }
+.usage-box .u-item span { color:var(--sub); white-space:nowrap; }
+.usage-box .u-item b { font-weight:600; text-align:right; word-break:break-all; }
+.usage-box .u-foot { margin-top:10px; font-size:11.5px; color:var(--dim); line-height:1.6; border-top:1px dashed var(--line-2); padding-top:8px; }
+.usage-box .u-foot code { background:rgba(38,34,26,.07); border-radius:4px; padding:1px 5px; font-size:11px; }
+
+/* ---------- 参考图 ---------- */
+.ref-row { display:flex; flex-direction:column; gap:8px; margin-top:12px; padding-bottom:14px; border-bottom:1px dashed var(--line-2); }
+.ref-sub { color:var(--dim); font-weight:400; }
+.ref-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:11px; flex-wrap:wrap; }
+.ref-label { font-size:12px; color:var(--sub); font-weight:500; letter-spacing:.4px; }
+.refs-wrap { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.refs { display:flex; gap:10px; flex-wrap:wrap; }
+.ref { position:relative; width:64px; height:64px; transition:transform .18s; }
+.ref:hover { transform:scale(1.06); }
+.ref img { width:64px; height:64px; object-fit:cover; border-radius:11px; display:block; border:1px solid var(--line-2); box-shadow:0 3px 10px rgba(38,34,26,.16); }
+.ref-idx {
+  position:absolute; top:-6px; left:-6px; background:var(--acc); color:#fff;
+  font-size:11px; min-width:18px; height:18px; line-height:18px; text-align:center;
+  border-radius:10px; padding:0 4px; font-weight:600; box-shadow:0 2px 8px rgba(179,84,30,.4);
+}
+.ref-ops { position:absolute; bottom:3px; right:3px; display:flex; gap:3px; }
+.ref-ops button { padding:0 5px; font-size:11px; line-height:18px; background:rgba(0,0,0,.6); color:#fff; border-radius:5px; border:none; }
+.ref-add {
+  width:64px; height:64px; border:1.5px dashed rgba(38,34,26,.28); border-radius:11px;
+  color:var(--dim); font-size:24px; background:#fff; padding:0; transition:all .18s;
+}
+.ref-add:hover { border-color:var(--acc); color:var(--acc); background:var(--acc-soft); }
+
+/* ---------- 创作区 ---------- */
+.compose-row { display:flex; gap:12px; margin-top:16px; align-items:flex-end; flex-wrap:wrap; }
+.compose-row .param { display:flex; flex-direction:column; gap:5px; }
+.compose-row .param-label { font-size:12px; color:var(--dim); font-weight:500; }
+.compose-row .param-ctl { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.compose-row .param select, .compose-row .param input[type=number] { width:100%; }
+.compose-row select { flex:1; min-width:130px; width:auto; }
+.compose-row input[type=number] { width:72px; }
+.compose-row .primary { padding:11px 26px; font-size:14.5px; border-radius:11px; margin-left:auto; }
+.custom-size { display:none; gap:6px; align-items:center; color:var(--dim); font-size:13px; }
+.custom-size.show { display:flex; }
+.custom-size input { width:76px; }
+
+/* ---------- Skill 模板 ---------- */
+.skill-bar { display:flex; align-items:center; gap:8px; margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed var(--line-2); flex-wrap:wrap; }
+.skill-label { font-size:12px; color:var(--sub); font-weight:500; letter-spacing:.4px; white-space:nowrap; }
+.skill-list { display:flex; gap:6px; flex-wrap:wrap; flex:1; align-items:center; }
+.skill-empty { font-size:12px; color:var(--dim); }
+.skill-chip {
+  display:inline-flex; align-items:center; background:var(--acc-soft); color:var(--acc);
+  border:1px solid rgba(179,84,30,.35); border-radius:999px; padding:4px 6px 4px 12px;
+  font-size:12px; cursor:pointer; transition:all .16s;
+}
+.skill-chip:hover { background:rgba(179,84,30,.18); transform:translateY(-1px); box-shadow:0 3px 10px rgba(179,84,30,.2); }
+.skill-chip .skill-del { background:transparent; color:var(--acc); padding:0 4px; font-size:14px; line-height:1; border:none; }
+
+/* ---------- 统计栏（吸顶） ---------- */
+.stats {
+  position:sticky; top:64px; z-index:20;
+  display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;
+  margin:0 -6px 16px; padding:10px 6px;
+  font-size:13px; color:var(--dim);
+  background:rgba(246,242,234,.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.stats .ops button { font-size:12px; padding:5px 13px; margin-left:6px; background:transparent; color:var(--sub); border:1px solid var(--line-2); border-radius:999px; }
+.stats .ops button:hover { color:var(--ink); border-color:rgba(38,34,26,.35); background:rgba(38,34,26,.05); }
+
+/* ---------- 画廊 ---------- */
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(216px,1fr)); gap:16px; align-items:start; }
+.task {
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;
+  box-shadow:var(--shadow);
+  transition:transform .22s, box-shadow .22s, border-color .22s;
+}
+.task:hover {
+  transform:translateY(-4px); border-color:rgba(179,84,30,.45);
+  box-shadow:0 18px 40px rgba(38,34,26,.14), 0 0 0 1px rgba(179,84,30,.14);
+}
+.thumb { height:210px; background:linear-gradient(135deg,#efe9db,#e8e1d0); display:flex; align-items:center; justify-content:center; }
+.thumb img { width:100%; height:100%; object-fit:cover; cursor:zoom-in; display:block; }
+.ph { width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:13px; }
+.shimmer {
+  background:linear-gradient(100deg,#ece5d4 40%,#f7f2e6 50%,#ece5d4 60%);
+  background-size:200% 100%; animation:sh 1.4s linear infinite; color:var(--acc); font-weight:500; letter-spacing:.5px;
+}
+@keyframes sh { to { background-position:-200% 0; } }
+.thumb-err { color:var(--err); font-size:13px; padding:0 14px; text-align:center; line-height:1.6; word-break:break-all; }
+.task-body { padding:13px 15px 15px; }
+.task-prompt {
+  font-size:13px; color:#3d382c; line-height:1.55; min-height:40px; word-break:break-all;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.task-foot { display:flex; align-items:center; justify-content:space-between; margin-top:11px; }
+.acts { display:flex; gap:6px; margin-top:10px; }
+.acts button { flex:1; text-align:center; }
+.badge { font-size:12px; padding:3px 11px; border-radius:999px; background:rgba(38,34,26,.07); color:var(--sub); white-space:nowrap; font-weight:500; }
+.badge.running { background:var(--acc-soft); color:var(--acc); box-shadow:0 0 0 1px rgba(179,84,30,.3); }
+.badge.done { background:rgba(46,125,79,.1); color:var(--ok); box-shadow:0 0 0 1px rgba(46,125,79,.26); }
+.badge.error { background:rgba(192,54,74,.08); color:var(--err); box-shadow:0 0 0 1px rgba(192,54,74,.24); }
+.ref-tag, .dim-tag { font-size:12px; color:var(--dim); margin-left:6px; }
+.copy-btn {
+  flex:none; width:26px; height:26px; padding:0; display:inline-flex; align-items:center; justify-content:center;
+  background:transparent; border:1px solid transparent; border-radius:7px; color:var(--dim); cursor:pointer;
+  transition:all .16s;
+}
+.copy-btn:hover { color:var(--acc); background:var(--acc-soft); border-color:rgba(179,84,30,.3); }
+.dbg {
+  margin-top:11px; font-size:11px; line-height:1.65; color:var(--sub); background:var(--panel-2);
+  border:1px solid var(--line); border-radius:var(--r-sm); padding:11px; white-space:pre-wrap;
+  word-break:break-all; max-height:220px; overflow:auto;
+}
+.dbg::-webkit-scrollbar { width:6px; }
+.dbg::-webkit-scrollbar-thumb { background:rgba(38,34,26,.18); border-radius:3px; border:none; }
+.acts button { margin-left:6px; }
+
+#empty {
+  text-align:center; color:var(--dim); font-size:13px; padding:56px 0; margin-bottom:16px;
+  border:1.5px dashed rgba(38,34,26,.18); border-radius:var(--r-lg); background:rgba(255,255,255,.4);
+  letter-spacing:.5px;
+}
+
+/* ---------- 灯箱 / Toast ---------- */
+.lightbox {
+  position:fixed; inset:0; background:rgba(20,17,12,.9); backdrop-filter:blur(12px); z-index:50;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:15px; padding:20px;
+}
+.lightbox img { max-width:92vw; max-height:70vh; min-height:0; flex:0 1 auto; border-radius:12px; box-shadow:0 24px 70px rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.14); }
+.lightbox .lb-prompt { color:#d8d2c4; font-size:13px; max-width:80vw; max-height:16vh; overflow-y:auto; flex:none; text-align:center; line-height:1.65; }
+.lightbox .lb-bar { display:flex; gap:10px; }
+.lightbox .lb-bar button { border-radius:999px; padding:8px 22px; }
+#lbDownload { background:var(--acc); color:#fff; border-color:transparent; box-shadow:0 4px 16px rgba(179,84,30,.4); }
+#lbDownload:hover { background:#c2601f; box-shadow:0 6px 20px rgba(179,84,30,.55); transform:translateY(-1px); }
+#lbClose { background:rgba(255,255,255,.1); color:#e8e2d4; border-color:rgba(255,255,255,.22); }
+#lbClose:hover { background:rgba(255,255,255,.2); color:#fff; }
+
+#toast {
+  position:fixed; left:50%; bottom:40px; transform:translateX(-50%) translateY(20px);
+  background:rgba(30,26,18,.94); backdrop-filter:blur(10px); color:#f3efe6; font-size:13px;
+  padding:11px 19px; border-radius:11px; border:1px solid rgba(255,255,255,.12); box-shadow:0 10px 30px rgba(38,34,26,.3);
+  opacity:0; pointer-events:none; transition:all .25s; z-index:99; max-width:80vw; text-align:center;
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ---------- 首页 / 使用说明（纸感排版） ---------- */
+.pub { max-width:1080px; margin:0 auto; }
+.pub.narrow { max-width:760px; }
+.kicker {
+  display:inline-block; font-size:12.5px; letter-spacing:2.5px; color:var(--acc);
+  border:1px solid rgba(179,84,30,.35); border-radius:999px; padding:5px 16px; margin-bottom:26px;
+  background:var(--acc-soft);
+}
+.hero { text-align:center; padding:56px 20px 40px; }
+.hero h2 { font-family:var(--serif); font-size:50px; line-height:1.25; font-weight:700; letter-spacing:1px; }
+.hero h2 em { font-style:normal; color:var(--acc); }
+.hero p.sub { max-width:560px; margin:22px auto 0; font-size:16px; color:var(--sub); }
+.cta-row { margin-top:36px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+.btn {
+  display:inline-block; text-decoration:none; font-size:15px; padding:13px 32px; border-radius:999px;
+  transition:all .2s; border:1px solid var(--ink); cursor:pointer;
+}
+.btn.primary { background:var(--ink); color:var(--bg); }
+.btn.primary:hover { background:var(--acc); border-color:var(--acc); transform:translateY(-2px); box-shadow:0 10px 24px rgba(179,84,30,.25); }
+.btn.ghost { color:var(--ink); background:transparent; }
+.btn.ghost:hover { background:rgba(38,34,26,.06); transform:translateY(-2px); }
+.hero-fig { max-width:920px; margin:52px auto 0; }
+.hero-fig img { width:100%; display:block; border-radius:14px; border:1px solid var(--line); box-shadow:0 24px 60px rgba(38,34,26,.14); }
+.hero-fig figcaption { margin-top:12px; font-size:12.5px; color:var(--dim); letter-spacing:.5px; }
+.rule { border:none; border-top:1px solid var(--line); margin:64px 0 0; }
+.audience { padding:64px 0 0; }
+.a-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.a-card {
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:24px 20px; text-align:center; transition:all .2s;
+}
+.a-card:hover { transform:translateY(-4px); box-shadow:0 16px 36px rgba(38,34,26,.1); border-color:rgba(179,84,30,.35); }
+.a-card .a-ico {
+  width:46px; height:46px; margin:0 auto 14px; border-radius:50%;
+  background:var(--acc-soft); border:1px solid rgba(179,84,30,.3);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--serif); font-size:20px; color:var(--acc);
+}
+.a-card h4 { font-family:var(--serif); font-size:16.5px; margin-bottom:8px; }
+.a-card p { font-size:13px; color:var(--sub); line-height:1.7; }
+.features { padding:64px 0 8px; }
+.section-head { text-align:center; margin-bottom:44px; }
+.section-head h3 { font-family:var(--serif); font-size:32px; letter-spacing:.5px; }
+.section-head p { color:var(--sub); margin-top:10px; font-size:15px; }
+.f-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.f-card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px 24px; transition:all .2s; }
+.f-card:hover { transform:translateY(-4px); box-shadow:0 16px 36px rgba(38,34,26,.1); border-color:rgba(179,84,30,.35); }
+.f-card .no { font-family:var(--serif); font-size:15px; color:var(--acc); letter-spacing:1px; }
+.f-card h4 { font-family:var(--serif); font-size:18px; margin:10px 0 8px; }
+.f-card p { font-size:13.5px; color:var(--sub); line-height:1.75; }
+.foot-cta { text-align:center; padding:56px 20px 24px; }
+.foot-cta h3 { font-family:var(--serif); font-size:28px; margin-bottom:24px; }
+
+.page-head { text-align:center; margin-bottom:48px; padding-top:40px; }
+.page-head h2 { font-family:var(--serif); font-size:38px; letter-spacing:1px; }
+.page-head p { color:var(--sub); margin-top:12px; font-size:15px; }
+.step { display:flex; gap:22px; padding:28px 0; border-top:1px solid var(--line); }
+.step .num {
+  font-family:var(--serif); font-size:24px; color:var(--acc); flex:none;
+  width:52px; height:52px; border:1px solid rgba(179,84,30,.35); border-radius:50%;
+  display:flex; align-items:center; justify-content:center; background:var(--acc-soft);
+}
+.step h3 { font-family:var(--serif); font-size:20px; margin-bottom:8px; }
+.step p { font-size:14.5px; color:var(--sub); }
+.step p + p { margin-top:6px; }
+.step code, .faq code { background:rgba(38,34,26,.07); border-radius:5px; padding:1px 7px; font-size:12.5px; }
+.step a { color:var(--acc); }
+.step .tip {
+  margin-top:10px; font-size:13px; color:var(--sub); background:var(--panel);
+  border:1px solid var(--line); border-left:3px solid var(--acc); border-radius:8px; padding:10px 14px;
+}
+.faq { margin-top:48px; border-top:1px solid var(--line); padding-top:36px; }
+.faq h3 { font-family:var(--serif); font-size:25px; text-align:center; margin-bottom:26px; }
+.faq details { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 20px; margin-bottom:12px; }
+.faq summary { cursor:pointer; font-size:14.5px; font-weight:600; list-style:none; }
+.faq summary::before { content:'＋'; color:var(--acc); margin-right:10px; font-weight:400; }
+.faq details[open] summary::before { content:'－'; }
+.faq details p { margin-top:10px; font-size:13.5px; color:var(--sub); }
+
+/* ---------- 关于作者 ---------- */
+.author-card { text-align:center; }
+.author-avatar {
+  width:132px; height:132px; border-radius:50%; object-fit:cover; display:inline-block;
+  border:1px solid var(--line-2); box-shadow:var(--shadow);
+}
+.author-card h3 { font-family:var(--serif); font-size:26px; margin-top:20px; letter-spacing:1px; }
+.author-tagline { color:var(--acc); font-size:13.5px; margin-top:6px; letter-spacing:.5px; }
+.author-bio { max-width:520px; margin:18px auto 0; font-size:14.5px; color:var(--sub); line-height:1.9; }
+.author-links { display:flex; justify-content:center; gap:12px; margin-top:26px; flex-wrap:wrap; }
+.author-block { border-top:1px solid var(--line); margin-top:44px; padding-top:36px; }
+.author-block h4 { font-family:var(--serif); font-size:20px; margin-bottom:12px; text-align:center; }
+.author-block p { font-size:14.5px; color:var(--sub); line-height:1.9; max-width:560px; margin:0 auto; text-align:center; }
+.author-block p + p { margin-top:10px; }
+.author-products { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; max-width:560px; margin:0 auto; }
+.author-product {
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:18px 20px; text-align:left; transition:all .18s;
+}
+.author-product:hover { transform:translateY(-2px); box-shadow:var(--shadow); }
+.author-product h5 { font-family:var(--serif); font-size:15.5px; margin-bottom:8px; }
+.author-product p { font-size:13px; color:var(--sub); line-height:1.7; text-align:left; margin:0; max-width:none; }
+
+@media (max-width:1080px) {
+  .layout { grid-template-columns:1fr; }
+  .side { position:static; max-height:none; overflow:visible; }
+  .a-grid { grid-template-columns:repeat(2,1fr); }
+}
+@media (max-width:860px) {
+  .hero h2 { font-size:33px; }
+  .f-grid { grid-template-columns:1fr; }
+  .page-head h2 { font-size:29px; }
+}
+@media (max-width:600px) {
+  .app { padding:0 12px 44px; }
+  header { margin:0 -12px 18px; padding:0 12px; }
+  .card { padding:16px; }
+  .field-row { flex-direction:column; gap:0; }
+  .grid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+  .thumb { height:170px; }
+  .nav-links a { padding:7px 10px; font-size:12.5px; }
+  .a-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1 class="brand" data-view="home" data-i18n="brand">画境 · AI 生图工具</h1>
+    <div class="header-right">
+      <nav class="nav-links">
+        <a data-view="home" data-i18n="nav.home">首页</a>
+        <a data-view="guide" data-i18n="nav.guide">使用说明</a>
+        <a data-view="about" data-i18n="nav.about">关于作者</a>
+        <a data-view="console" data-i18n="nav.console">控制台</a>
+      </nav>
+      <div class="lang-switch" id="langSwitch">
+        <span data-lang="zh">中</span>
+        <span data-lang="en">EN</span>
+      </div>
+    </div>
+  </header>
+
+  <section id="view-console" class="hidden">
+  <div class="layout">
+  <aside class="side">
+  <section id="settingsPanel" class="card hidden">
+    <div class="card-title" data-i18n="settings.title">接口配置</div>
+    <div class="field">
+      <label data-i18n="settings.baseUrl">接口地址（Base URL，OpenAI 兼容格式）</label>
+      <input id="cfgBase" value="https://api.gpteamservices.com/v1/images/generations" placeholder="https://api.openai.com/v1 或你的中转地址" data-i18n-ph="settings.baseUrlPh">
+    </div>
+    <div class="field">
+      <label data-i18n="settings.proxy">本地代理（由 npm start 启动的本地服务提供，留空则直连）</label>
+      <input id="cfgProxy" value="http://127.0.0.1:8787" placeholder="http://127.0.0.1:8787，留空则直连" data-i18n-ph="settings.proxyPh">
+    </div>
+    <div class="field">
+      <label>API Key</label>
+      <input id="cfgKey" type="password" placeholder="sk-..." autocomplete="off">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label data-i18n="settings.model">模型</label>
+        <input id="cfgModel" list="modelList" value="gpt-image-2" placeholder="例如 dall-e-3 / gpt-image-1 / doubao-seedream" data-i18n-ph="settings.modelPh">
+        <datalist id="modelList">
+          <option value="dall-e-3"></option>
+          <option value="dall-e-2"></option>
+          <option value="gpt-image-1"></option>
+          <option value="gpt-image-1-mini"></option>
+          <option value="flux.1-schnell"></option>
+          <option value="flux.1-dev"></option>
+          <option value="stable-diffusion-3-5-large"></option>
+          <option value="doubao-seedream-3-0-t2i-250415"></option>
+          <option value="Kwai-Kolors/Kolors"></option>
+        </datalist>
+      </div>
+      <div class="field" style="max-width:130px">
+        <label data-i18n="settings.concurrency">并发数</label>
+        <input id="cfgConc" type="number" min="1" max="10" value="3">
+      </div>
+    </div>
+    <div class="field">
+      <label data-i18n="settings.extra">额外参数（JSON，可选，会合并进请求体）</label>
+      <textarea id="cfgExtra" rows="2" placeholder='例如 {"response_format":"b64_json","quality":"high"}' data-i18n-ph="settings.extraPh">{"aspect_ratio":"1:1"}</textarea>
+    </div>
+    <div class="settings-actions">
+      <button id="btnTest" class="small" data-i18n="settings.test">测试连接</button>
+      <button id="btnCaps" class="small" data-i18n="settings.caps">读取图片能力</button>
+      <button id="btnUsage" class="small" data-i18n="settings.usage">查询额度</button>
+      <span id="testResult"></span>
+    </div>
+    <pre id="capsResult" class="dbg hidden" style="max-height:340px"></pre>
+    <div id="usageResult" class="usage-box hidden"></div>
+    <div class="hint" data-i18n-html="settings.hint">配置自动保存在浏览器 localStorage，仅本机可见。页面与代理均由本地服务提供（<b>npm start</b>），同源请求不会触发跨域；若未启动，请先在项目目录执行 <b>npm start</b>，再访问 http://127.0.0.1:8787。</div>
+  </section>
+
+  <section class="card">
+    <div class="card-title"><span class="ct-text" data-i18n="console.create">创作</span>
+      <span class="conn-pill" id="connPill" title="接口连通性（点击手动检测）" data-i18n-title="console.connTitle">连接 —</span>
+      <span class="quota-pill" id="quotaPill" title="剩余额度（点击手动刷新）" data-i18n-title="console.quotaTitle">额度 —</span>
+      <button id="toggleSettings" class="small title-btn" data-i18n="console.settings">接口配置</button>
+    </div>
+    <div class="skill-bar">
+      <span class="skill-label" data-i18n="console.skill">模板</span>
+      <div id="skillList" class="skill-list"></div>
+      <button id="btnImportSkill" class="small" data-i18n="console.import">导入</button>
+      <button id="btnClearSkill" class="small" title="清空模板、提示词与参考图" data-i18n-title="console.clearTitle" data-i18n="console.clear">清空</button>
+      <input type="file" id="skillFile" accept=".md,.markdown,.txt" hidden>
+    </div>
+    <textarea id="prompt" rows="3" placeholder="描述你想要生成的图片，例如：一只在星空下奔跑的柴犬，赛博朋克风格" data-i18n-ph="console.promptPh"></textarea>
+
+    <div class="ref-row">
+      <span class="ref-label" data-i18n-html="console.refLabel">参考图 <span class="ref-sub">（可选，序号即传参顺序）</span></span>
+      <div class="refs-wrap">
+        <div id="refList" class="refs"></div>
+        <button id="btnAddRef" class="ref-add" title="添加参考图" data-i18n-title="console.addRef">+</button>
+        <input type="file" id="refFile" accept="image/*" multiple hidden>
+      </div>
+    </div>
+
+    <div class="compose-row">
+      <div class="param">
+        <span class="param-label" data-i18n="console.size">尺寸</span>
+        <div class="param-ctl">
+          <select id="size">
+            <option value="1024x1024" selected>1024×1024（1:1 方形）</option>
+            <option value="1024x688">1024×688（3:2 横图）</option>
+            <option value="688x1024">688×1024（2:3 竖图）</option>
+            <option value="1024x768">1024×768（4:3 横图）</option>
+            <option value="768x1024">768×1024（3:4 竖图）</option>
+            <option value="1024x576">1024×576（16:9 横图）</option>
+            <option value="576x1024">576×1024（9:16 竖图）</option>
+            <option value="1024x432">1024×432（21:9 超宽）</option>
+            <option value="1024x512">1024×512（2:1 横图）</option>
+            <option value="512x1024">512×1024（1:2 竖图）</option>
+            <option value="1024x352">1024×352（3:1 横图）</option>
+            <option value="352x1024">352×1024（1:3 竖图）</option>
+            <option value="custom" data-i18n="console.customSize">自定义尺寸</option>
+          </select>
+          <span class="custom-size" id="customSize">
+            <input id="sizeW" type="number" min="64" value="1024" placeholder="宽" data-i18n-ph="console.width"> ×
+            <input id="sizeH" type="number" min="64" value="1024" placeholder="高" data-i18n-ph="console.height">
+          </span>
+        </div>
+      </div>
+      <div class="param">
+        <span class="param-label" data-i18n="console.quality">质量</span>
+        <select id="quality" title="质量档位（默认=不传，跟随上游）" data-i18n-title="console.qualityTitle">
+          <option value="" selected data-i18n="console.qualityDefault">默认（跟随上游）</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+      </div>
+      <div class="param">
+        <span class="param-label" data-i18n="console.count">张数</span>
+        <input id="count" type="number" min="1" max="20" value="1">
+      </div>
+      <button id="btnGen" class="primary" data-i18n="console.generate">生成图片</button>
+    </div>
+    <div class="hint" data-i18n="console.hint">Ctrl+Enter 快捷生成 · 提交后立即排队，可继续提交下一张，并发数决定同时生成几张。</div>
+  </section>
+  </aside>
+  <main class="main">
+
+  <div class="stats">
+    <span id="statsText" data-i18n="console.noTask">暂无任务</span>
+    <span class="ops">
+      <button id="btnCancelPending" data-i18n="console.cancelPending">取消排队</button>
+      <button id="btnClearFinished" data-i18n="console.clearFinished">清空已结束</button>
+    </span>
+  </div>
+
+    <div id="empty" data-i18n="console.empty">暂无任务，输入提示词开始生成</div>
+    <section id="grid" class="grid"></section>
+  </main>
+  </div>
+  </section>
+
+  <!-- ============ 首页视图 ============ -->
+  <section id="view-home">
+    <div class="pub">
+      <div class="hero">
+        <span class="kicker" data-i18n="home.kicker">OPENAI 兼容 · GPTEAM 优化</span>
+        <h2 data-i18n-html="home.hero">一语入<em>画</em> 万象成<em>境</em></h2>
+        <p class="sub" data-i18n="home.sub">一个纯前端、开箱即用的 AI 生图工作台：文生图、参考图生图、Skill 提示词模板、批量并发队列与额度查询，全部在浏览器里完成。</p>
+        <div class="cta-row">
+          <a class="btn primary" data-view="console" data-i18n="home.cta1">进入控制台</a>
+          <a class="btn ghost" data-view="guide" data-i18n="home.cta2">查看使用说明</a>
+        </div>
+        <figure class="hero-fig">
+          <img src="images/index.png" alt="画境示意">
+          <figcaption data-i18n="home.figcap">文字 × 参考图 × 模板 —— 一次提交，多路并发</figcaption>
+        </figure>
+      </div>
+      <hr class="rule">
+      <div class="audience">
+        <div class="section-head">
+          <h3 data-i18n="home.audienceTitle">谁适合用画境</h3>
+          <p data-i18n="home.audienceSub">不管你的出发点是什么，它都能帮你把想法变成画面。</p>
+        </div>
+        <div class="a-grid">
+          <div class="a-card"><div class="a-ico">笔</div><h4 data-i18n="home.aud1Title">内容创作者</h4><p data-i18n="home.aud1Desc">小红书、公众号封面、配图；快速出图、批量生成，不用等设计师排期。</p></div>
+          <div class="a-card"><div class="a-ico">秀</div><h4 data-i18n="home.aud2Title">电商运营</h4><p data-i18n="home.aud2Desc">商品主图、场景图、模特换装；低门槛出高质量素材，节省拍摄成本。</p></div>
+          <div class="a-card"><div class="a-ico">乐</div><h4 data-i18n="home.aud3Title">设计爱好者</h4><p data-i18n="home.aud3Desc">想把脑海中的画面落地；文生图、图生图、参考图引导，自由探索风格。</p></div>
+          <div class="a-card"><div class="a-ico">研</div><h4 data-i18n="home.aud4Title">开发者 / 极客</h4><p data-i18n="home.aud4Desc">接入 OpenAI 兼容接口的调试台；查看额度、读取能力、批量测试模型输出。</p></div>
+        </div>
+      </div>
+      <div class="features">
+        <div class="section-head">
+          <h3 data-i18n="home.featTitle">为日常创作准备的六件事</h3>
+          <p data-i18n="home.featSub">不追求繁杂，只把生图工作流里最常用的环节打磨顺手。</p>
+        </div>
+        <div class="f-grid">
+          <div class="f-card"><div class="no">01</div><h4 data-i18n="home.f1Title">文生图与图生图</h4><p data-i18n="home.f1Desc">兼容 OpenAI images 接口；上传多张参考图自动走 multipart 图生图，序号即传参顺序，可自由调整先后。</p></div>
+          <div class="f-card"><div class="no">02</div><h4 data-i18n="home.f2Title">Skill 提示词模板</h4><p data-i18n="home.f2Desc">导入 SKILL.md 一键套用提示词模板，自动识别 BOM、GBK 等多种编码；仅在当前会话保留，刷新即清空。</p></div>
+          <div class="f-card"><div class="no">03</div><h4 data-i18n="home.f3Title">官方尺寸与质量档</h4><p data-i18n="home.f3Desc">内置 GPTEAM 文档 12 种画幅的目标尺寸，自动联动 aspect_ratio；质量档位 low / medium / high 可选。</p></div>
+          <div class="f-card"><div class="no">04</div><h4 data-i18n="home.f4Title">并发任务队列</h4><p data-i18n="home.f4Desc">一次提交多张，按并发数自动调度；支持排队取消、失败重试、批量清理，生成状态一目了然。</p></div>
+          <div class="f-card"><div class="no">05</div><h4 data-i18n="home.f5Title">额度与能力查询</h4><p data-i18n="home.f5Desc">一键查询 API Key 剩余额度、订阅与额度包余量；可读取当前分组可用的图片模型能力。</p></div>
+          <div class="f-card"><div class="no">06</div><h4 data-i18n="home.f6Title">隐私与本地化</h4><p data-i18n="home.f6Desc">配置仅保存在本机浏览器 localStorage；接口不允许跨域时，可配合本地代理脚本直连中转。</p></div>
+        </div>
+      </div>
+      <div class="foot-cta">
+        <h3 data-i18n="home.ready">准备好开始了吗？</h3>
+        <a class="btn primary" data-view="console" data-i18n="home.openConsole">打开控制台</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 使用说明视图 ============ -->
+  <section id="view-guide" class="hidden">
+    <div class="pub narrow">
+      <div class="page-head">
+        <h2 data-i18n="guide.title">使用说明</h2>
+        <p data-i18n="guide.sub">七步上手，从注册账号到批量出图。</p>
+      </div>
+      <div class="step">
+        <div class="num">1</div>
+        <div>
+          <h3 data-i18n="guide.s0Title">注册并获取 API Key</h3>
+          <p data-i18n-html="guide.s0Desc">前往 <a href="https://portal.gpteamservices.com" target="_blank" rel="noopener">GPTEAM 平台</a>注册账号，在后台创建并复制你的 <code>API Key</code>（<code>sk-</code> 开头），后续在「接口配置」中填入。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div>
+          <h3 data-i18n="guide.s1Title">配置接口</h3>
+          <p data-i18n-html="guide.s1Desc">打开控制台，点击右上角「接口配置」，填写 <code>Base URL</code>（默认已填 GPTEAM 地址）与你的 <code>API Key</code>，选择模型与并发数。配置自动保存在本机浏览器，不会上传。</p>
+          <div class="tip" data-i18n-html="guide.s1Tip">页面与代理由本地服务提供（<code>npm start</code> 后访问 <code>http://127.0.0.1:8787</code>），同源请求不会触发跨域；若「本地代理」留空导致直连被拦截，填入 <code>http://127.0.0.1:8787</code> 即可。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div>
+          <h3 data-i18n="guide.s2Title">验证连通与额度</h3>
+          <p data-i18n-html="guide.s2Desc">在设置面板中点击「测试连接」确认接口可用；点击「查询额度」查看 Key 的剩余额度、订阅余量与额度包；「读取图片能力」可查看当前分组可用的图片模型。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">4</div>
+        <div>
+          <h3 data-i18n="guide.s3Title">填写提示词</h3>
+          <p data-i18n-html="guide.s3Desc">在提示词框中描述想要的画面。也可以点击「导入 SKILL.md」导入提示词模板——支持 <code>.md / .markdown / .txt</code>，自动处理 BOM 与 GBK 编码，导入后点击标签即可套用；模板仅在当前会话保留，刷新页面自动清空。</p>
+          <div class="tip" data-i18n-html="guide.s3Tip">快捷键：在提示词框中按 <code>Ctrl + Enter</code> 直接提交。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">5</div>
+        <div>
+          <h3 data-i18n="guide.s4Title">添加参考图（可选）</h3>
+          <p data-i18n-html="guide.s4Desc">点击「＋」上传一张或多张参考图，图片缩略图上的序号就是传参顺序，可用 ‹ › 调整先后、× 删除。带参考图时自动走 multipart 图生图接口（<code>/images/edits</code>）。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">6</div>
+        <div>
+          <h3 data-i18n="guide.s5Title">选择尺寸、质量与张数</h3>
+          <p data-i18n-html="guide.s5Desc">尺寸下拉框内置 GPTEAM 官方尺寸表（1:1 到 1:3 共 12 种画幅），选择后自动联动 <code>aspect_ratio</code> 写入额外参数；也可选「自定义尺寸」手动填写宽高。质量档可选 low / medium / high，默认不传跟随上游。张数决定一次提交几个任务。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">7</div>
+        <div>
+          <h3 data-i18n="guide.s6Title">生成与管理</h3>
+          <p data-i18n-html="guide.s6Desc">点击「生成图片」后任务立即排队，按并发数自动调度；生成中可随时取消，失败可重试。完成后点击缩略图放大预览，支持下载单张。「详情」可查看该次请求的参数摘要，便于排查问题。</p>
+        </div>
+      </div>
+      <div class="faq">
+        <h3 data-i18n="guide.faqTitle">常见问题</h3>
+        <details>
+          <summary data-i18n="guide.faq1Q">为什么生成失败提示"网络错误或跨域"？</summary>
+          <p data-i18n-html="guide.faq1A">直接用 <code>file://</code> 打开页面时，浏览器会按跨域策略拦截接口请求。改用 <code>npm start</code> 启动本地服务，再访问 <code>http://127.0.0.1:8787</code>，页面与代理同源，请求即可正常发出。</p>
+        </details>
+        <details>
+          <summary data-i18n="guide.faq2Q">我的 API Key 会被上传吗？</summary>
+          <p data-i18n="guide.faq2A">不会。所有配置只保存在本机浏览器的 localStorage 中，请求由你的浏览器直接发往接口地址（或你指定的本地代理）。</p>
+        </details>
+        <details>
+          <summary data-i18n="guide.faq3Q">Skill 模板去哪里了？</summary>
+          <p data-i18n="guide.faq3A">模板仅保存在当前会话内存中，刷新或关闭页面即清空，这是有意设计，避免模板长期滞留。需要时重新导入即可。</p>
+        </details>
+        <details>
+          <summary data-i18n="guide.faq4Q">实际扣费以什么为准？</summary>
+          <p data-i18n-html="guide.faq4A">以 GPTEAM Portal 的请求日志为准。图片计费看张数、尺寸档与 upscale；详情见官方计费文档。</p>
+        </details>
+      </div>
+      <div class="foot-cta">
+        <a class="btn primary" data-view="console" data-i18n="guide.openConsole">打开控制台</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 关于作者视图 ============ -->
+  <section id="view-about" class="hidden">
+    <div class="pub narrow">
+      <div class="page-head">
+        <h2 data-i18n="about.title">关于作者</h2>
+        <p data-i18n="about.sub">这个工具的设计初衷与维护理念。</p>
+      </div>
+      <div class="author-card">
+        <img class="author-avatar" src="images/SeekerLo.jpg" alt="作者头像">
+        <h3>SeekerLo</h3>
+        <p class="author-tagline" data-i18n="about.tagline">喜欢不断探索的人</p>
+        <p class="author-bio" data-i18n-html="about.bio">
+          写代码这件事，对我最大的吸引力不是「做出一个产品」，而是「让某件事变得顺手」。<br>
+          AI 生图工具兴起之后，我一直在用 OpenAI 兼容接口做图，但主流平台要么功能太重、要么缺少几个我最常用的细节（比如参考图顺序调整、并发队列、额度一目了然）。「画境」就是在这种「顺手」的念头下做出来的。
+        </p>
+        <div class="author-links">
+          <a class="btn ghost" href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+          <a class="btn primary" data-view="console" data-i18n="about.openConsole">打开控制台</a>
+        </div>
+      </div>
+      <div class="author-block">
+        <h4 data-i18n="about.techTitle">技术栈</h4>
+        <p data-i18n-html="about.techDesc">页面为纯前端实现（HTML + 原生 JavaScript + CSS），不依赖任何框架与前端构建工具；数据全部保存在浏览器 localStorage。随附的 Node 本地服务（<code>main.js</code>）负责托管页面并转发接口请求，规避浏览器跨域限制。</p>
+      </div>
+      <div class="author-block">
+        <h4 data-i18n="about.productsTitle">其他产品</h4>
+        <div class="author-products">
+          <div class="author-product">
+            <h5>画境</h5>
+            <p data-i18n="about.p1Desc">本站：纯前端 OpenAI 兼容生图工作台，文生图、参考图生图、Skill 提示词模板、并发队列与额度查询。</p>
+          </div>
+          <div class="author-product">
+            <h5>云拍立得</h5>
+            <p data-i18n="about.p2Desc">微信小程序：微信搜「云拍立得」即可打开，一款制作电子拍立得的小程序。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div id="lightbox" class="lightbox hidden">
+  <img id="lbImg" alt="">
+  <div class="lb-prompt" id="lbPrompt"></div>
+  <div class="lb-bar">
+    <button id="lbDownload" class="primary small" data-i18n="lightbox.download">下载图片</button>
+    <button id="lbClose" class="small" data-i18n="lightbox.close">关闭</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const CFG_KEY = 'aiImgTool.cfg.v1';
+
+let tasks = [];        // {id, prompt, size, refs[], status, img, error, ctrl, el}
+let refImages = [];    // {name, dataUrl} 有序
+let running = 0;
+let seq = 0;
+let lbTask = null;
+
+const cfgFields = ['cfgBase','cfgProxy','cfgKey','cfgModel','cfgConc','cfgExtra','size','quality','count','sizeW','sizeH'];
+
+/* ---------- 配置持久化 ---------- */
+function loadCfg(){
+  try{
+    const c = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
+    cfgFields.forEach(id => { if(c[id] !== undefined) $(id).value = c[id]; });
+  }catch(e){}
+  // 旧版存的是 OpenAI 风格尺寸（如 1536x1024），不在 GPTEAM 尺寸表内则回退默认
+  if(!$('size').value || ![...$('size').options].some(o => o.value === $('size').value)){
+    $('size').value = '1024x1024';
+  }
+  onSizeChange();
+}
+function saveCfg(){
+  const c = {};
+  cfgFields.forEach(id => c[id] = $(id).value);
+  localStorage.setItem(CFG_KEY, JSON.stringify(c));
+}
+cfgFields.forEach(id => $(id).addEventListener('change', saveCfg));
+$('cfgConc').addEventListener('change', () => { saveCfg(); schedule(); });
+$('size').addEventListener('change', onSizeChange);
+
+function onSizeChange(){
+  $('customSize').classList.toggle('show', $('size').value === 'custom');
+}
+
+/* ---------- 尺寸 → aspect_ratio 自动填充（GPTEAM 尺寸表，见 docs/api/image-generation） ---------- */
+const SIZE_TO_AR = {
+  '1024x1024': '1:1',
+  '1024x688': '3:2',
+  '688x1024': '2:3',
+  '1024x768': '4:3',
+  '768x1024': '3:4',
+  '1024x576': '16:9',
+  '576x1024': '9:16',
+  '1024x432': '21:9',
+  '1024x512': '2:1',
+  '512x1024': '1:2',
+  '1024x352': '3:1',
+  '352x1024': '1:3'
+};
+const AR_ENUMS = ['1:1','1:2','2:1','1:3','3:1','3:2','2:3','4:3','3:4','16:9','9:16','21:9'];
+function gcd(a, b){ return b ? gcd(b, a % b) : a; }
+
+function syncAspectRatio(){
+  let ar = null;
+  const v = $('size').value;
+  if(v === 'custom'){
+    const w = parseInt($('sizeW').value, 10), h = parseInt($('sizeH').value, 10);
+    if(w > 0 && h > 0){
+      const g = gcd(w, h);
+      const r = (w / g) + ':' + (h / g);
+      if(AR_ENUMS.indexOf(r) >= 0) ar = r;
+    }
+  }else{
+    ar = SIZE_TO_AR[v] || null;
+  }
+  if(!ar) return;
+  const cur = $('cfgExtra').value.trim();
+  let o = {};
+  if(cur){
+    try{ o = JSON.parse(cur); }catch(e){ return; }   // 额外参数 JSON 非法时不覆盖，保留用户原文
+  }
+  if(o.aspect_ratio === ar) return;
+  o.aspect_ratio = ar;
+  $('cfgExtra').value = JSON.stringify(o);
+  saveCfg();
+}
+$('size').addEventListener('change', syncAspectRatio);
+$('sizeW').addEventListener('input', syncAspectRatio);
+$('sizeH').addEventListener('input', syncAspectRatio);
+
+/* ---------- 本地代理 ---------- */
+function proxied(url){
+  // 页面与本地服务（node main.js）同源，经代理转发可规避接口的跨域限制
+  const p = $('cfgProxy').value.trim().replace(/\/+$/,'');
+  return p ? p + '/' + url : url;
+}
+
+/* ---------- 提示 toast ---------- */
+let toastTimer;
+function toast(msg){
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+/* ---------- 参考图 ---------- */
+$('btnAddRef').addEventListener('click', () => $('refFile').click());
+$('refFile').addEventListener('change', e => {
+  [...e.target.files].forEach(f => {
+    if(!f.type.startsWith('image/')) return;
+    const rd = new FileReader();
+    rd.onload = () => { refImages.push({ name:f.name, dataUrl:rd.result }); renderRefs(); };
+    rd.readAsDataURL(f);
+  });
+  e.target.value = '';
+});
+
+function renderRefs(){
+  const box = $('refList');
+  box.innerHTML = '';
+  refImages.forEach((r, i) => {
+    const el = document.createElement('div');
+    el.className = 'ref';
+    el.dataset.i = i;
+    el.innerHTML =
+      '<img alt="">' +
+      '<span class="ref-idx">' + (i+1) + '</span>' +
+      '<div class="ref-ops">' +
+        '<button data-ract="left" title="前移"' + (i===0?' disabled':'') + '>‹</button>' +
+        '<button data-ract="right" title="后移"' + (i===refImages.length-1?' disabled':'') + '>›</button>' +
+        '<button data-ract="rm" title="删除">×</button>' +
+      '</div>';
+    el.querySelector('img').src = r.dataUrl;
+    box.appendChild(el);
+  });
+}
+
+$('refList').addEventListener('click', e => {
+  const btn = e.target.closest('[data-ract]');
+  if(!btn) return;
+  const i = +btn.closest('.ref').dataset.i;
+  const act = btn.dataset.ract;
+  if(act === 'rm') refImages.splice(i, 1);
+  else if(act === 'left' && i > 0) [refImages[i-1], refImages[i]] = [refImages[i], refImages[i-1]];
+  else if(act === 'right' && i < refImages.length-1) [refImages[i+1], refImages[i]] = [refImages[i], refImages[i+1]];
+  renderRefs();
+});
+
+function dataURLtoBlob(d){
+  const parts = d.split(',');
+  const mime = (parts[0].match(/data:(.*?);/) || [null,'image/png'])[1];
+  const bin = atob(parts[1]);
+  const u8 = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+  return new Blob([u8], { type:mime });
+}
+
+// 生成可读的请求体摘要（base64 截断），用于卡片「详情」调试
+function summarizeBody(body){
+  if(typeof body === 'string'){
+    return body.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/g, m => m.slice(0, 60) + '...[base64省略]');
+  }
+  if(body instanceof FormData){
+    const parts = [];
+    body.forEach((v, k) => parts.push(k + ': ' + (v instanceof Blob ? '[文件 ' + v.size + ' 字节]' : String(v))));
+    return parts.join('\n');
+  }
+  return '';
+}
+
+/* ---------- 提交任务 ---------- */
+$('btnGen').addEventListener('click', submit);
+$('prompt').addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && e.key === 'Enter') submit();
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && !$('lightbox').classList.contains('hidden')) closeLightbox();
+});
+
+function currentSize(){
+  if($('size').value === 'custom'){
+    const w = parseInt($('sizeW').value), h = parseInt($('sizeH').value);
+    if(!w || !h) throw new Error('请填写自定义尺寸的宽和高');
+    return w + 'x' + h;
+  }
+  return $('size').value;
+}
+
+function submit(){
+  const prompt = $('prompt').value.trim();
+  if(!prompt){ toast('请输入提示词'); return; }
+  let size;
+  try{ size = currentSize(); }catch(e){ toast(e.message); return; }
+  const n = Math.min(Math.max(parseInt($('count').value) || 1, 1), 20);
+  const quality = $('quality').value;   // 质量档位快照，'' = 不传
+  const refsSnapshot = refImages.map(r => r.dataUrl);   // 快照，提交后改参考图不影响已提交任务
+  for(let i=0;i<n;i++){
+    const t = { id:++seq, prompt, size, quality, refs:refsSnapshot, status:'pending', img:null, error:null, ctrl:null, el:null };
+    tasks.unshift(t);
+    mountTask(t);
+  }
+  $('empty').style.display = 'none';
+  schedule();
+}
+
+/* ---------- 并发调度 ---------- */
+function oldestPending(){
+  for(let i=tasks.length-1;i>=0;i--) if(tasks[i].status === 'pending') return tasks[i];
+  return null;
+}
+function schedule(){
+  const limit = Math.min(Math.max(parseInt($('cfgConc').value) || 1, 1), 10);
+  while(running < limit){
+    const t = oldestPending();
+    if(!t) break;
+    runTask(t);
+  }
+  updateStats();
+}
+
+async function runTask(t){
+  t.status = 'running';
+  t.ctrl = new AbortController();
+  running++;
+  updateTaskEl(t); updateStats();
+  try{
+    const base = $('cfgBase').value.trim().replace(/\/+$/,'');
+    if(!base) throw new Error('请先在设置中填写接口地址');
+    const model = $('cfgModel').value.trim();
+    if(!model) throw new Error('请先填写模型名称');
+    const key = $('cfgKey').value.trim();
+    const extra = $('cfgExtra').value.trim();
+    const quality = t.quality || '';   // 提交时的质量档位快照
+    let url, options;
+
+    if(t.refs.length){
+      // multipart 图生图：/images/edits，image[] 按序（固定方式，页面不再提供切换）
+      const b2 = base.replace(/\/images\/(generations|edits)$/,'');
+      url = b2 + '/images/edits';
+      const fd = new FormData();
+      fd.append('model', model);
+      fd.append('prompt', t.prompt);
+      if(quality) fd.append('quality', quality);
+      t.refs.forEach((d,i) => fd.append('image', dataURLtoBlob(d), 'ref-' + (i+1) + '.png'));   // image 字段按序多份（GPTEAM 文档格式）
+      if(extra){
+        let o; try{ o = JSON.parse(extra); }catch(e){ throw new Error('额外参数不是合法 JSON'); }
+        Object.entries(o).forEach(([k,v]) => fd.append(k, typeof v === 'object' ? JSON.stringify(v) : v));
+      }
+      options = { method:'POST', headers:{ 'Authorization':'Bearer ' + key }, body:fd, signal:t.ctrl.signal };
+    }else{
+      // JSON 文生图/图生图：/images/generations
+      url = base.endsWith('/images/generations') ? base : base + '/images/generations';
+      const body = { model, prompt:t.prompt, n:1 };
+      if(quality) body.quality = quality;
+      if(t.refs.length) body.image = t.refs;   // 有序参考图数组
+      if(extra){
+        let o; try{ o = JSON.parse(extra); }catch(e){ throw new Error('额外参数不是合法 JSON'); }
+        Object.assign(body, o);
+      }
+      options = {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + key },
+        body:JSON.stringify(body), signal:t.ctrl.signal
+      };
+    }
+
+    t.debug = options.method + ' ' + url + '\n\n' + summarizeBody(options.body);
+    const res = await fetch(proxied(url), options);
+    if(!res.ok){
+      let msg = 'HTTP ' + res.status;
+      try{
+        const j = await res.json();
+        if(j.error && j.error.message) msg += '：' + j.error.message;
+        else msg += '：' + JSON.stringify(j).slice(0,150);
+      }catch(e){
+        try{ msg += '：' + (await res.text()).slice(0,150); }catch(e2){}
+      }
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    const item = data.data && data.data[0];
+    if(item && item.url) t.img = item.url;
+    else if(item && item.b64_json) t.img = 'data:image/png;base64,' + item.b64_json;
+    else throw new Error('接口响应中未找到图片数据');
+    t.status = 'done';
+    updateTaskEl(t);
+  }catch(e){
+    if(e.name === 'AbortError'){
+      removeTask(t, true);
+    }else{
+      t.status = 'error';
+      t.error = (e instanceof TypeError) ? '网络错误或跨域(CORS)被拦截，请确认接口允许浏览器直接访问，或使用本地代理' : (e.message || '请求失败');
+      updateTaskEl(t);
+    }
+  }finally{
+    running--;
+    updateStats();
+    schedule();
+  }
+}
+
+/* ---------- 任务卡片 ---------- */
+const LABELS = { pending:'排队中', running:'生成中', done:'已完成', error:'失败' };
+const LABELS_EN = { pending:'Queued', running:'Running', done:'Done', error:'Failed' };
+
+function mountTask(t){
+  const el = document.createElement('div');
+  el.className = 'task';
+  el.dataset.id = t.id;
+  el.innerHTML =
+    '<div class="thumb"></div>' +
+    '<div class="task-body">' +
+      '<div class="task-prompt"></div>' +
+      '<div class="task-foot">' +
+        '<span><span class="badge"></span><span class="ref-tag"></span><span class="dim-tag"></span></span>' +
+        '<button class="copy-btn" data-act="copy" title="复制提示词">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="acts"></div>' +
+    '</div>';
+  t.el = el;
+  $('grid').prepend(el);
+  updateTaskEl(t);
+}
+
+function updateTaskEl(t){
+  const L = currentLang === 'en' ? LABELS_EN : LABELS;
+  const thumb = t.el.querySelector('.thumb');
+  const badge = t.el.querySelector('.badge');
+  const acts = t.el.querySelector('.acts');
+  const promptEl = t.el.querySelector('.task-prompt');
+  promptEl.textContent = t.prompt;
+  promptEl.title = t.prompt + '（' + t.size + '）';
+  badge.textContent = L[t.status];
+  badge.className = 'badge ' + t.status;
+  t.el.querySelector('.ref-tag').textContent = t.refs.length ? (currentLang === 'en' ? 'Ref×' : '参考图×') + t.refs.length : '';
+
+  const dimEl = t.el.querySelector('.dim-tag');
+  dimEl.textContent = '';
+  if(t.status === 'done'){
+    thumb.innerHTML = '<img alt="">';
+    const img = thumb.querySelector('img');
+    img.onload = () => { dimEl.textContent = (currentLang === 'en' ? 'Actual ' : '实际 ') + img.naturalWidth + '×' + img.naturalHeight; };
+    img.src = t.img;
+    thumb.title = '';
+    acts.innerHTML = '<button class="small" data-act="dl">' + (currentLang === 'en' ? 'Download' : '下载') + '</button><button class="small" data-act="dbg">' + (currentLang === 'en' ? 'Details' : '详情') + '</button><button class="small" data-act="del">' + (currentLang === 'en' ? 'Delete' : '删除') + '</button>';
+  }else if(t.status === 'error'){
+    thumb.innerHTML = '<div class="thumb-err"></div>';
+    thumb.querySelector('.thumb-err').textContent = t.error;
+    acts.innerHTML = '<button class="small" data-act="retry">' + (currentLang === 'en' ? 'Retry' : '重试') + '</button><button class="small" data-act="dbg">' + (currentLang === 'en' ? 'Details' : '详情') + '</button><button class="small" data-act="del">' + (currentLang === 'en' ? 'Delete' : '删除') + '</button>';
+  }else{
+    const cls = t.status === 'running' ? 'ph shimmer' : 'ph';
+    thumb.innerHTML = '<div class="' + cls + '"><span>' + L[t.status] + '</span></div>';
+    thumb.title = '';
+    acts.innerHTML = '<button class="small" data-act="cancel">' + (currentLang === 'en' ? 'Cancel' : '取消') + '</button>';
+  }
+}
+
+$('grid').addEventListener('click', e => {
+  const card = e.target.closest('.task');
+  if(!card) return;
+  const t = tasks.find(x => x.id === +card.dataset.id);
+  if(!t) return;
+  const btn = e.target.closest('[data-act]');
+  if(!btn){
+    if(e.target.closest('.thumb img') && t.status === 'done') openLightbox(t);
+    return;
+  }
+  const act = btn.dataset.act;
+  if(act === 'cancel') removeTask(t);
+  else if(act === 'retry'){ t.status = 'pending'; t.error = null; updateTaskEl(t); schedule(); }
+  else if(act === 'del') removeTask(t);
+  else if(act === 'dl') download(t);
+  else if(act === 'dbg') toggleDebug(t);
+  else if(act === 'copy'){
+    navigator.clipboard.writeText(t.prompt)
+      .then(() => toast('提示词已复制'))
+      .catch(() => toast('复制失败，请手动选择复制'));
+  }
+});
+
+function toggleDebug(t){
+  let pre = t.el.querySelector('.dbg');
+  if(pre){ pre.remove(); return; }
+  pre = document.createElement('pre');
+  pre.className = 'dbg';
+  pre.textContent = t.debug || '无调试信息';
+  t.el.querySelector('.task-body').appendChild(pre);
+}
+
+function removeTask(t, aborted){
+  if(!aborted && t.status === 'running' && t.ctrl){ t.ctrl.abort(); return; }
+  if(t.el) t.el.remove();
+  tasks = tasks.filter(x => x !== t);
+  if(!tasks.length) $('empty').style.display = 'block';
+  updateStats();
+}
+
+/* ---------- 批量操作 ---------- */
+$('btnCancelPending').addEventListener('click', () => {
+  tasks.slice().forEach(t => { if(t.status === 'pending') removeTask(t); });
+});
+$('btnClearFinished').addEventListener('click', () => {
+  tasks.slice().forEach(t => { if(t.status === 'done' || t.status === 'error') removeTask(t); });
+});
+$('toggleSettings').addEventListener('click', () => $('settingsPanel').classList.toggle('hidden'));
+
+function updateStats(){
+  const c = { pending:0, running:0, done:0, error:0 };
+  tasks.forEach(t => c[t.status]++);
+  if(tasks.length){
+    if(currentLang === 'en'){
+      $('statsText').textContent = tasks.length + ' total ｜ Queued ' + c.pending + ' ｜ Running ' + c.running + ' ｜ Done ' + c.done + ' ｜ Failed ' + c.error;
+    }else{
+      $('statsText').textContent = '共 ' + tasks.length + ' 个任务 ｜ 排队 ' + c.pending + ' ｜ 生成中 ' + c.running + ' ｜ 完成 ' + c.done + ' ｜ 失败 ' + c.error;
+    }
+  }else{
+    $('statsText').textContent = t('console.noTask');
+  }
+}
+
+// 语言切换后刷新任务卡片与统计
+function refreshTaskTexts(){
+  tasks.forEach(updateTaskEl);
+  updateStats();
+}
+
+/* ---------- 下载 / 灯箱 ---------- */
+async function download(t){
+  try{
+    const res = await fetch(t.img);
+    const blob = await res.blob();
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = u;
+    a.download = 'ai-image-' + t.id + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(u), 1000);
+  }catch(e){
+    window.open(t.img, '_blank');
+  }
+}
+
+function openLightbox(t){
+  lbTask = t;
+  $('lbImg').src = t.img;
+  $('lbPrompt').textContent = t.prompt + '（' + t.size + '）';
+  $('lightbox').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';   // 锁定背景滚动
+}
+function closeLightbox(){
+  $('lightbox').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+$('lbClose').addEventListener('click', closeLightbox);
+$('lightbox').addEventListener('click', e => { if(e.target.id === 'lightbox') closeLightbox(); });
+$('lbDownload').addEventListener('click', () => { if(lbTask) download(lbTask); });
+
+/* ---------- 测试连接 ---------- */
+$('btnTest').addEventListener('click', async () => {
+  const el = $('testResult');
+  el.textContent = '测试中...';
+  el.className = '';
+  try{
+    let b = $('cfgBase').value.trim().replace(/\/+$/,'');
+    if(!b) throw new Error('请填写接口地址');
+    if(!$('cfgKey').value.trim()) throw new Error('请先填写 API Key');
+    b = b.replace(/\/images\/(generations|edits)$/,'');
+    const r = await fetch(proxied(b + '/models'), { headers:{ 'Authorization':'Bearer ' + $('cfgKey').value.trim() } });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    el.textContent = '连接成功';
+    el.className = 'ok';
+  }catch(e){
+    el.textContent = '连接失败：' + ((e instanceof TypeError) ? '网络错误或跨域(CORS)被拦截' : e.message);
+    el.className = 'fail';
+  }
+});
+
+/* ---------- 读取图片能力（GPTEAM image-capabilities） ---------- */
+$('btnCaps').addEventListener('click', async () => {
+  const pre = $('capsResult');
+  pre.classList.remove('hidden');
+  pre.textContent = '查询中...';
+  try{
+    let b = $('cfgBase').value.trim().replace(/\/+$/,'');
+    if(!b) throw new Error('请填写接口地址');
+    b = b.replace(/\/images\/(generations|edits)$/,'');
+    const r = await fetch(proxied(b + '/gpteam/image-capabilities'), { headers:{ 'Authorization':'Bearer ' + $('cfgKey').value.trim() } });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const txt = await r.text();
+    try{ pre.textContent = JSON.stringify(JSON.parse(txt), null, 2).slice(0, 8000); }
+    catch(e){ pre.textContent = txt.slice(0, 8000); }
+  }catch(e){
+    pre.textContent = '查询失败：' + ((e instanceof TypeError) ? '网络错误或跨域(CORS)被拦截' : e.message);
+  }
+});
+
+/* ---------- 查询额度（GPTEAM usage：GET /usage、/v1/usage） ----------
+   文档：https://portal.gpteamservices.com/portal/docs/api/usage
+   返回为 API 可消费额度（周期剩余 + 额度包剩余），不含账户现金余额 balance。 */
+function fmtQuotaNum(v, unit){
+  if(v === undefined || v === null) return null;
+  if(v === -1) return '无固定上限';
+  if(typeof v !== 'number') return String(v);
+  return v + (unit ? ' ' + unit : '');
+}
+function apiBaseFor(){
+  let b = $('cfgBase').value.trim().replace(/\/+$/,'');
+  if(!b) throw new Error('请填写接口地址');
+  return b.replace(/\/images\/(generations|edits)$/,'');
+}
+async function fetchUsage(){
+  const key = $('cfgKey').value.trim();
+  if(!key) throw new Error('请先填写 API Key');
+  const b = apiBaseFor();
+  const opt = { headers:{ 'Authorization':'Bearer ' + key } };
+  // 依次尝试文档列出的 /v1/usage（由 Base URL 推导）与根路径 /usage
+  const candidates = [b + '/usage'];
+  const origin = b.match(/^https?:\/\/[^\/]+/);
+  if(origin && origin[0] !== b) candidates.push(origin[0] + '/usage');
+  for(const u of candidates){
+    const r = await fetch(proxied(u), opt);
+    if(r.ok){
+      const j = await r.json();
+      if(j && (j.available_quota !== undefined || j.remaining !== undefined || j.available_quota_display || j.remaining_display)) return j;
+      throw new Error('响应中未找到额度字段：' + JSON.stringify(j).slice(0, 200));
+    }
+    if(r.status !== 404){
+      let msg = 'HTTP ' + r.status;
+      try{ const j = await r.json(); if(j.error && j.error.message) msg += '：' + j.error.message; }catch(e){}
+      throw new Error(msg);   // 401 密钥无效等直接报错，不再换地址
+    }
+  }
+  throw new Error('HTTP 404：' + candidates.join(' 与 ') + ' 均不存在');
+}
+function renderUsage(d){
+  const unit = d.unit || '';
+  const valid = d.isValid !== false;
+  const display = d.available_quota_display || d.remaining_display;
+  const num = fmtQuotaNum(d.available_quota !== undefined ? d.available_quota : d.remaining, unit);
+  const item = (label, val) => val === null || val === undefined || val === '' ? '' :
+    '<div class="u-item"><span>' + label + '</span><b>' + val + '</b></div>';
+  const rows = [
+    item('订阅剩余', fmtQuotaNum(d.subscription_remaining, unit)),
+    item('额度包剩余', fmtQuotaNum(d.quota_package_remaining, unit)),
+    item('账户余额（不计入额度）', fmtQuotaNum(d.balance, unit)),
+    item('额度模式', d.mode)
+  ].join('');
+  return '<div class="u-title"><b>API 可用额度</b>' +
+      '<span class="u-state ' + (valid ? 'valid' : 'invalid') + '">' + (valid ? 'Key 有效' : 'Key 无效') + '</span>' +
+    '</div>' +
+    '<div class="u-main">' + (display || num || '—') + (display && num && num !== display ? '<small>' + num + '</small>' : '') + '</div>' +
+    '<div class="u-grid">' + rows + '</div>' +
+    '<div class="u-foot">额度 = 周期窗口剩余 + 额度包剩余；<code>balance</code> 为账户余额附加信息，不计入 API 可消费额度。计费按「文本输入 + 图片输入 + 缓存 + 图片输出」拆分，单价见模型广场，实际扣费以 Portal 请求日志为准。</div>';
+}
+$('btnUsage').addEventListener('click', async () => {
+  const box = $('usageResult');
+  box.classList.remove('hidden');
+  box.innerHTML = '<span style="color:var(--dim)">查询中...</span>';
+  try{
+    const d = await fetchUsage();
+    box.innerHTML = renderUsage(d);
+  }catch(e){
+    box.innerHTML = '<span class="u-err">查询失败：' + ((e instanceof TypeError) ? '网络错误或跨域(CORS)被拦截' : e.message) + '</span>';
+  }
+});
+
+/* ---------- 额度徽标：点击手动刷新 ---------- */
+let quotaBusy = false;
+async function refreshQuotaPill(manual){
+  const pill = $('quotaPill');
+  if(quotaBusy) return;
+  if(!$('cfgKey').value.trim()){ pill.textContent = t('pill.quota') + ' ' + t('pill.none'); pill.classList.remove('err'); return; }
+  quotaBusy = true;
+  pill.classList.add('loading');
+  try{
+    const d = await fetchUsage();
+    const unit = d.unit || '';
+    const txt = d.available_quota_display || d.remaining_display || fmtQuotaNum(d.available_quota !== undefined ? d.available_quota : d.remaining, unit) || '—';
+    pill.textContent = t('pill.quota') + ' ' + txt;
+    pill.classList.remove('err');
+    pill.title = t('pill.quotaRefreshTitle');
+    if(manual) toast(t('pill.quota') + ' ' + txt);
+  }catch(e){
+    pill.textContent = t('pill.quota') + ' ' + t('pill.queryFail');
+    pill.classList.add('err');
+    pill.title = (e instanceof TypeError) ? '网络错误或跨域(CORS)被拦截' : e.message;
+    if(manual) toast(t('pill.quota') + ' ' + t('pill.queryFail') + '：' + pill.title);
+  }finally{
+    quotaBusy = false;
+    pill.classList.remove('loading');
+  }
+}
+$('quotaPill').addEventListener('click', () => refreshQuotaPill(true));
+
+/* ---------- 连通性徽标：点击手动检测 ---------- */
+let connBusy = false;
+async function refreshConnPill(manual){
+  const pill = $('connPill');
+  if(connBusy) return;
+  let b = $('cfgBase').value.trim().replace(/\/+$/,'');
+  if(!b || !$('cfgKey').value.trim()){
+    pill.textContent = t('pill.conn') + ' ' + t('pill.none');
+    pill.className = 'conn-pill';
+    if(manual) toast(t('pill.conn') + ' ' + t('pill.none'));
+    return;
+  }
+  connBusy = true;
+  pill.classList.add('loading');
+  try{
+    b = b.replace(/\/images\/(generations|edits)$/,'');
+    const r = await fetch(proxied(b + '/models'), { headers:{ 'Authorization':'Bearer ' + $('cfgKey').value.trim() } });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    pill.textContent = t('pill.conn') + ' ' + t('pill.ok');
+    pill.className = 'conn-pill ok';
+    pill.title = t('pill.connOkTitle');
+    if(manual) toast(t('pill.conn') + ' ' + t('pill.ok'));
+  }catch(e){
+    pill.textContent = t('pill.conn') + ' ' + t('pill.fail');
+    pill.className = 'conn-pill err';
+    pill.title = t('pill.connFailTitle') + '：' + ((e instanceof TypeError) ? '网络错误或跨域(CORS)被拦截' : e.message);
+    if(manual) toast(pill.title);
+  }finally{
+    connBusy = false;
+    pill.classList.remove('loading');
+  }
+}
+$('connPill').addEventListener('click', () => refreshConnPill(true));
+
+/* ---------- Skill 模板（SKILL.md 导入/应用/删除） ---------- */
+const SKILL_KEY = 'aiImgTool.skills.v1';
+let skills = [];
+
+function parseSkillMd(rawText, fileName){
+  // 去 BOM、统一换行符（含孤立 \r），否则 frontmatter 匹配会失败，整个文档被当成正文
+  const text = String(rawText || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const meta = {};
+  let body = text;
+  const m = text.match(/^---[ \t]*\n([\s\S]*?)\n---[ \t]*(?:\n+|$)/);
+  if(m){
+    m[1].split('\n').forEach(line => {
+      const kv = line.match(/^([A-Za-z_-]+)\s*:\s*(.*)$/);
+      if(kv) meta[kv[1].trim().toLowerCase()] = kv[2].trim().replace(/^["']+|["']+$/g, '');
+    });
+    body = text.slice(m[0].length);
+  }
+  body = body.trim();
+  // 无 frontmatter name 时，退而取正文首个一级标题
+  if(!meta.name){
+    const h = body.match(/^#\s+(.+)$/m);
+    if(h) meta.name = h[1].trim().replace(/^["']|["']$/g, '');
+  }
+  return {
+    id: Date.now() + Math.random().toString(36).slice(2, 7) + '-' + Math.random().toString(36).slice(2, 5),
+    name: meta.name || fileName.replace(/\.(md|markdown|txt)$/i,''),
+    description: meta.description || '',
+    body
+  };
+}
+
+function renderSkills(){
+  const box = $('skillList');
+  const importBtn = $('btnImportSkill');
+  box.innerHTML = '';
+  importBtn.disabled = skills.length > 0;
+  if(!skills.length){
+    box.innerHTML = '<span class="skill-empty">暂无，可导入 SKILL.md 提示词模板</span>';
+    return;
+  }
+  skills.forEach(s => {
+    const el = document.createElement('span');
+    el.className = 'skill-chip';
+    el.dataset.id = s.id;
+    el.title = s.description ? s.name + '：' + s.description : s.name;
+    const nm = document.createElement('span');
+    nm.textContent = s.name;
+    const del = document.createElement('button');
+    del.textContent = '×';
+    del.title = '删除该模板';
+    del.dataset.sdel = '1';
+    el.appendChild(nm); el.appendChild(del);
+    box.appendChild(el);
+  });
+}
+
+function loadSkills(){
+  // skill 仅会话内有效：刷新页面即清空，并移除历史持久化数据
+  skills = [];
+  try{ localStorage.removeItem(SKILL_KEY); }catch(e){}
+  renderSkills();
+}
+
+$('btnImportSkill').addEventListener('click', () => $('skillFile').click());
+// 提示词输入框自动增高：填入大段模板内容时能直接看到，而不是只显示 3 行像没填上
+function autoGrowPrompt(){
+  const ta = $('prompt');
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.4)) + 'px';
+}
+$('prompt').addEventListener('input', autoGrowPrompt);
+
+// 应用模板：{prompt} 占位符替换为当前输入；无占位符则整体填入
+function applySkill(s){
+  const ta = $('prompt');
+  const cur = ta.value.trim();
+  if(s.body.indexOf('{prompt}') >= 0){
+    ta.value = s.body.split('{prompt}').join(cur);
+    if(!cur) toast('模板已填入，请在预留位置补充具体内容');
+  }else{
+    ta.value = s.body;
+  }
+  autoGrowPrompt();
+  ta.focus();
+}
+// 读文件：默认按 UTF-8；若出现替换符（GBK/GB2312 文档被误读）或空字符（UTF-16 文档），
+// 用探测到的编码重读一次，避免中文文档导入后全是乱码导致解析失败
+function readSkillText(f, cb){
+  const rd = new FileReader();
+  rd.onload = () => {
+    const text = String(rd.result);
+    const hasNul = text.indexOf('\u0000') >= 0;
+    const hasReplacement = text.indexOf('\uFFFD') >= 0;
+    if(!hasNul && !hasReplacement){ cb(text); return; }
+    const rd2 = new FileReader();
+    rd2.onload = () => cb(String(rd2.result));
+    rd2.onerror = () => cb(text);   // 重读失败就退回首次结果
+    rd2.readAsText(f, hasNul ? 'utf-16le' : 'gbk');
+  };
+  rd.onerror = () => toast('读取失败：' + f.name);
+  rd.readAsText(f);
+}
+$('skillFile').addEventListener('change', e => {
+  const f = e.target.files[0];   // 只支持单个模板：新导入替换旧的
+  e.target.value = '';
+  if(!f) return;
+  readSkillText(f, text => {
+    if(!text.trim()){ toast('导入失败：' + f.name + '（文件为空）'); return; }
+    const s = parseSkillMd(text, f.name);
+    if(!s.body){ toast('导入失败：' + f.name + '（未读取到正文内容，请确认是有效的 SKILL.md）'); return; }
+    skills = [s];
+    renderSkills();
+    // 导入成功后立即回显：提示词框为空则自动填入；已有内容则提示点击标签应用
+    if(!$('prompt').value.trim()){
+      applySkill(s);
+      toast('已导入并填入：' + s.name + '（' + s.body.length + ' 字）');
+    }else{
+      toast('已导入：' + s.name + '（点击上方标签应用）');
+    }
+  });
+});
+
+$('btnClearSkill').addEventListener('click', () => {
+  if(!skills.length && !$('prompt').value.trim() && !refImages.length){ toast('暂无可清空的内容'); return; }
+  skills = [];
+  renderSkills();
+  refImages.length = 0;
+  $('refFile').value = '';
+  renderRefs();
+  const ta = $('prompt');
+  ta.value = '';
+  autoGrowPrompt();
+  toast('已清空 Skill 模板、提示词与参考图');
+});
+
+$('skillList').addEventListener('click', e => {
+  const chip = e.target.closest('.skill-chip');
+  if(!chip) return;
+  const s = skills.find(x => x.id === chip.dataset.id);
+  if(!s) return;
+  if(e.target.dataset.sdel){
+    skills = skills.filter(x => x.id !== s.id);
+    renderSkills();
+    return;
+  }
+  applySkill(s);
+});
+
+/* ---------- 单页视图路由（hash 驱动） ---------- */
+const VIEW_IDS = ['home', 'guide', 'about', 'console'];
+function showView(v) {
+  if (!VIEW_IDS.includes(v)) v = 'home';
+  VIEW_IDS.forEach(x => $('view-' + x).classList.toggle('hidden', x !== v));
+  document.querySelectorAll('.nav-links a').forEach(a2 => a2.classList.toggle('active', a2.dataset.view === v));
+  if (('#' + v) !== location.hash) history.replaceState(null, '', '#' + v);
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('[data-view]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); showView(el.dataset.view); }));
+window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+showView(location.hash.slice(1) || 'home');
+
+/* ---------- 中英文切换 ---------- */
+const I18N = {
+  zh: {
+    brand: '画境 · AI 生图工具',
+    'nav.home': '首页',
+    'nav.guide': '使用说明',
+    'nav.about': '关于作者',
+    'nav.console': '控制台',
+    'home.kicker': 'OPENAI 兼容 · GPTEAM 优化',
+    'home.hero': '一语入<em>画</em> 万象成<em>境</em>',
+    'home.sub': '一个纯前端、开箱即用的 AI 生图工作台：文生图、参考图生图、Skill 提示词模板、批量并发队列与额度查询，全部在浏览器里完成。',
+    'home.cta1': '进入控制台',
+    'home.cta2': '查看使用说明',
+    'home.figcap': '文字 × 参考图 × 模板 —— 一次提交，多路并发',
+    'home.audienceTitle': '谁适合用画境',
+    'home.audienceSub': '不管你的出发点是什么，它都能帮你把想法变成画面。',
+    'home.aud1Title': '内容创作者',
+    'home.aud1Desc': '小红书、公众号封面、配图；快速出图、批量生成，不用等设计师排期。',
+    'home.aud2Title': '电商运营',
+    'home.aud2Desc': '商品主图、场景图、模特换装；低门槛出高质量素材，节省拍摄成本。',
+    'home.aud3Title': '设计爱好者',
+    'home.aud3Desc': '想把脑海中的画面落地；文生图、图生图、参考图引导，自由探索风格。',
+    'home.aud4Title': '开发者 / 极客',
+    'home.aud4Desc': '接入 OpenAI 兼容接口的调试台；查看额度、读取能力、批量测试模型输出。',
+    'home.featTitle': '为日常创作准备的六件事',
+    'home.featSub': '不追求繁杂，只把生图工作流里最常用的环节打磨顺手。',
+    'home.f1Title': '文生图与图生图',
+    'home.f1Desc': '兼容 OpenAI images 接口；上传多张参考图自动走 multipart 图生图，序号即传参顺序，可自由调整先后。',
+    'home.f2Title': 'Skill 提示词模板',
+    'home.f2Desc': '导入 SKILL.md 一键套用提示词模板，自动识别 BOM、GBK 等多种编码；仅在当前会话保留，刷新即清空。',
+    'home.f3Title': '官方尺寸与质量档',
+    'home.f3Desc': '内置 GPTEAM 文档 12 种画幅的目标尺寸，自动联动 aspect_ratio；质量档位 low / medium / high 可选。',
+    'home.f4Title': '并发任务队列',
+    'home.f4Desc': '一次提交多张，按并发数自动调度；支持排队取消、失败重试、批量清理，生成状态一目了然。',
+    'home.f5Title': '额度与能力查询',
+    'home.f5Desc': '一键查询 API Key 剩余额度、订阅与额度包余量；可读取当前分组可用的图片模型能力。',
+    'home.f6Title': '隐私与本地化',
+    'home.f6Desc': '配置仅保存在本机浏览器 localStorage；接口不允许跨域时，可配合本地代理脚本直连中转。',
+    'home.ready': '准备好开始了吗？',
+    'home.openConsole': '打开控制台',
+    'guide.title': '使用说明',
+    'guide.sub': '七步上手，从注册账号到批量出图。',
+    'guide.s0Title': '注册并获取 API Key',
+    'guide.s0Desc': '前往 <a href="https://portal.gpteamservices.com" target="_blank" rel="noopener">GPTEAM 平台</a>注册账号，在后台创建并复制你的 <code>API Key</code>（<code>sk-</code> 开头），后续在「接口配置」中填入。',
+    'guide.s1Title': '配置接口',
+    'guide.s1Desc': '打开控制台，点击右上角「接口配置」，填写 <code>Base URL</code>（默认已填 GPTEAM 地址）与你的 <code>API Key</code>，选择模型与并发数。配置自动保存在本机浏览器，不会上传。',
+    'guide.s1Tip': '页面与代理由本地服务提供（<code>npm start</code> 后访问 <code>http://127.0.0.1:8787</code>），同源请求不会触发跨域；若「本地代理」留空导致直连被拦截，填入 <code>http://127.0.0.1:8787</code> 即可。',
+    'guide.s2Title': '验证连通与额度',
+    'guide.s2Desc': '在设置面板中点击「测试连接」确认接口可用；点击「查询额度」查看 Key 的剩余额度、订阅余量与额度包；「读取图片能力」可查看当前分组可用的图片模型。',
+    'guide.s3Title': '填写提示词',
+    'guide.s3Desc': '在提示词框中描述想要的画面。也可以点击「导入 SKILL.md」导入提示词模板——支持 <code>.md / .markdown / .txt</code>，自动处理 BOM 与 GBK 编码，导入后点击标签即可套用；模板仅在当前会话保留，刷新页面自动清空。',
+    'guide.s3Tip': '快捷键：在提示词框中按 <code>Ctrl + Enter</code> 直接提交。',
+    'guide.s4Title': '添加参考图（可选）',
+    'guide.s4Desc': '点击「＋」上传一张或多张参考图，图片缩略图上的序号就是传参顺序，可用 ‹ › 调整先后、× 删除。带参考图时自动走 multipart 图生图接口（<code>/images/edits</code>）。',
+    'guide.s5Title': '选择尺寸、质量与张数',
+    'guide.s5Desc': '尺寸下拉框内置 GPTEAM 官方尺寸表（1:1 到 1:3 共 12 种画幅），选择后自动联动 <code>aspect_ratio</code> 写入额外参数；也可选「自定义尺寸」手动填写宽高。质量档可选 low / medium / high，默认不传跟随上游。张数决定一次提交几个任务。',
+    'guide.s6Title': '生成与管理',
+    'guide.s6Desc': '点击「生成图片」后任务立即排队，按并发数自动调度；生成中可随时取消，失败可重试。完成后点击缩略图放大预览，支持下载单张。「详情」可查看该次请求的参数摘要，便于排查问题。',
+    'guide.faqTitle': '常见问题',
+    'guide.faq1Q': '为什么生成失败提示"网络错误或跨域"？',
+    'guide.faq1A': '直接用 <code>file://</code> 打开页面时，浏览器会按跨域策略拦截接口请求。改用 <code>npm start</code> 启动本地服务，再访问 <code>http://127.0.0.1:8787</code>，页面与代理同源，请求即可正常发出。',
+    'guide.faq2Q': '我的 API Key 会被上传吗？',
+    'guide.faq2A': '不会。所有配置只保存在本机浏览器的 localStorage 中，请求由你的浏览器直接发往接口地址（或你指定的本地代理）。',
+    'guide.faq3Q': 'Skill 模板去哪里了？',
+    'guide.faq3A': '模板仅保存在当前会话内存中，刷新或关闭页面即清空，这是有意设计，避免模板长期滞留。需要时重新导入即可。',
+    'guide.faq4Q': '实际扣费以什么为准？',
+    'guide.faq4A': '以 GPTEAM Portal 的请求日志为准。图片计费看张数、尺寸档与 upscale；详情见官方计费文档。',
+    'guide.openConsole': '打开控制台',
+    'about.title': '关于作者',
+    'about.sub': '这个工具的设计初衷与维护理念。',
+    'about.tagline': '喜欢不断探索的人',
+    'about.bio': '写代码这件事，对我最大的吸引力不是「做出一个产品」，而是「让某件事变得顺手」。<br>AI 生图工具兴起之后，我一直在用 OpenAI 兼容接口做图，但主流平台要么功能太重、要么缺少几个我最常用的细节（比如参考图顺序调整、并发队列、额度一目了然）。「画境」就是在这种「顺手」的念头下做出来的。',
+    'about.openConsole': '打开控制台',
+    'about.techTitle': '技术栈',
+    'about.techDesc': '页面为纯前端实现（HTML + 原生 JavaScript + CSS），不依赖任何框架与前端构建工具；数据全部保存在浏览器 localStorage。随附的 Node 本地服务（<code>main.js</code>）负责托管页面并转发接口请求，规避浏览器跨域限制。',
+    'about.productsTitle': '其他产品',
+    'about.p1Desc': '本站：纯前端 OpenAI 兼容生图工作台，文生图、参考图生图、Skill 提示词模板、并发队列与额度查询。',
+    'about.p2Desc': '微信小程序：微信搜「云拍立得」即可打开，一款制作电子拍立得的小程序。',
+    'settings.title': '接口配置',
+    'settings.baseUrl': '接口地址（Base URL，OpenAI 兼容格式）',
+    'settings.baseUrlPh': 'https://api.openai.com/v1 或你的中转地址',
+    'settings.proxy': '本地代理（由 npm start 启动的本地服务提供，留空则直连）',
+    'settings.proxyPh': 'http://127.0.0.1:8787，留空则直连',
+    'settings.model': '模型',
+    'settings.modelPh': '例如 dall-e-3 / gpt-image-1 / doubao-seedream',
+    'settings.concurrency': '并发数',
+    'settings.extra': '额外参数（JSON，可选，会合并进请求体）',
+    'settings.extraPh': '例如 {"response_format":"b64_json","quality":"high"}',
+    'settings.test': '测试连接',
+    'settings.caps': '读取图片能力',
+    'settings.usage': '查询额度',
+    'settings.hint': '配置自动保存在浏览器 localStorage，仅本机可见。页面与代理均由本地服务提供（<b>npm start</b>），同源请求不会触发跨域；若未启动，请先在项目目录执行 <b>npm start</b>，再访问 http://127.0.0.1:8787。',
+    'console.create': '创作',
+    'console.connTitle': '接口连通性（点击手动检测）',
+    'console.quotaTitle': '剩余额度（点击手动刷新）',
+    'console.settings': '接口配置',
+    'console.skill': '模板',
+    'console.import': '导入',
+    'console.clear': '清空',
+    'console.clearTitle': '清空模板、提示词与参考图',
+    'console.promptPh': '描述你想要生成的图片，例如：一只在星空下奔跑的柴犬，赛博朋克风格',
+    'console.refLabel': '参考图 <span class="ref-sub">（可选，序号即传参顺序）</span>',
+    'console.addRef': '添加参考图',
+    'console.size': '尺寸',
+    'console.customSize': '自定义尺寸',
+    'console.width': '宽',
+    'console.height': '高',
+    'console.quality': '质量',
+    'console.qualityTitle': '质量档位（默认=不传，跟随上游）',
+    'console.qualityDefault': '默认（跟随上游）',
+    'console.count': '张数',
+    'console.generate': '生成图片',
+    'console.hint': 'Ctrl+Enter 快捷生成 · 提交后立即排队，可继续提交下一张，并发数决定同时生成几张。',
+    'console.noTask': '暂无任务',
+    'console.cancelPending': '取消排队',
+    'console.clearFinished': '清空已结束',
+    'console.empty': '暂无任务，输入提示词开始生成',
+    'lightbox.download': '下载图片',
+    'lightbox.close': '关闭',
+    'pill.conn': '连接',
+    'pill.quota': '额度',
+    'pill.ok': '正常',
+    'pill.fail': '失败',
+    'pill.none': '未配置',
+    'pill.queryFail': '查询失败',
+    'pill.refresh': '点击手动刷新',
+    'pill.check': '点击手动检测',
+    'pill.connOkTitle': '接口连通性正常（点击手动检测）',
+    'pill.connFailTitle': '连接失败',
+    'pill.quotaRefreshTitle': '剩余额度（点击手动刷新）'
+  },
+  en: {
+    brand: 'HuaJing · AI Image Studio',
+    'nav.home': 'Home',
+    'nav.guide': 'Guide',
+    'nav.about': 'About',
+    'nav.console': 'Console',
+    'home.kicker': 'OPENAI Compatible · GPTEAM Optimized',
+    'home.hero': 'One line in, a world painted.',
+    'home.sub': 'A pure front-end, zero-setup AI image studio: text-to-image, image-to-image, Skill prompt templates, batch concurrent queue and quota checking — all in your browser.',
+    'home.cta1': 'Open Console',
+    'home.cta2': 'Read Guide',
+    'home.figcap': 'Text × Reference × Template — one submit, multiple concurrent tasks',
+    'home.audienceTitle': 'Who is HuaJing for',
+    'home.audienceSub': 'No matter where you start, it helps turn ideas into images.',
+    'home.aud1Title': 'Content Creators',
+    'home.aud1Desc': 'Covers and illustrations for social posts; fast generation and batch output without waiting for designers.',
+    'home.aud2Title': 'E-commerce Operators',
+    'home.aud2Desc': 'Product shots, scene images, model swaps; low-barrier, high-quality assets that cut shooting costs.',
+    'home.aud3Title': 'Design Enthusiasts',
+    'home.aud3Desc': 'Bring mental images to life; text-to-image, image-to-image, and reference-guided exploration.',
+    'home.aud4Title': 'Developers / Geeks',
+    'home.aud4Desc': 'A debugging console for OpenAI-compatible APIs; check quotas, read capabilities, batch-test model outputs.',
+    'home.featTitle': 'Six things for everyday creation',
+    'home.featSub': 'No bloat — just the most-used parts of an image workflow, polished.',
+    'home.f1Title': 'Text & Image to Image',
+    'home.f1Desc': 'Compatible with OpenAI images API; multiple references automatically use multipart image-to-image with adjustable order.',
+    'home.f2Title': 'Skill Prompt Templates',
+    'home.f2Desc': 'Import SKILL.md to apply templates instantly; auto-detects BOM, GBK and more; session-only, cleared on refresh.',
+    'home.f3Title': 'Official Sizes & Quality',
+    'home.f3Desc': 'Built-in 12 GPTEAM aspect ratios with automatic aspect_ratio sync; quality low / medium / high optional.',
+    'home.f4Title': 'Concurrent Task Queue',
+    'home.f4Desc': 'Submit multiple tasks at once, auto-scheduled by concurrency; cancel queued, retry failed, batch clear.',
+    'home.f5Title': 'Quota & Capability Query',
+    'home.f5Desc': 'One-click check of API Key remaining quota, subscription and package balance; read available image model capabilities.',
+    'home.f6Title': 'Privacy & Local',
+    'home.f6Desc': 'Config stays in your browser localStorage; use the local proxy script when the API blocks CORS.',
+    'home.ready': 'Ready to start?',
+    'home.openConsole': 'Open Console',
+    'guide.title': 'Guide',
+    'guide.sub': 'Seven steps from sign-up to batch generation.',
+    'guide.s0Title': 'Register & Get an API Key',
+    'guide.s0Desc': 'Sign up on the <a href="https://portal.gpteamservices.com" target="_blank" rel="noopener">GPTEAM portal</a>, then create and copy your <code>API Key</code> (starts with <code>sk-</code>) — you will paste it into "API Settings" later.',
+    'guide.s1Title': 'Configure API',
+    'guide.s1Desc': 'Open Console, click "Settings" in the top right, fill in <code>Base URL</code> (GPTEAM pre-filled) and your <code>API Key</code>, choose model and concurrency. Config is saved locally in your browser only.',
+    'guide.s1Tip': 'The page and proxy are both served by the local service (<code>npm start</code>, then open <code>http://127.0.0.1:8787</code>), so requests are same-origin. If leaving "Local Proxy" empty gets blocked, set it to <code>http://127.0.0.1:8787</code>.',
+    'guide.s2Title': 'Verify Connection & Quota',
+    'guide.s2Desc': 'In Settings, click "Test Connection" to verify the API; click "Check Quota" for remaining quota, subscription and packages; "Read Capabilities" shows available image models.',
+    'guide.s3Title': 'Write Prompt',
+    'guide.s3Desc': 'Describe your image in the prompt box. Or click "Import SKILL.md" to load a prompt template — supports <code>.md / .markdown / .txt</code> with BOM and GBK auto-handling; click the chip to apply; templates are session-only.',
+    'guide.s3Tip': 'Shortcut: press <code>Ctrl + Enter</code> in the prompt box to submit.',
+    'guide.s4Title': 'Add References (Optional)',
+    'guide.s4Desc': 'Click "+" to upload one or more reference images. The number on the thumbnail is the parameter order; use ‹ › to reorder, × to delete. With references, multipart image-to-image (<code>/images/edits</code>) is used automatically.',
+    'guide.s5Title': 'Size, Quality & Count',
+    'guide.s5Desc': 'The size dropdown has 12 GPTEAM official aspect ratios (1:1 to 1:3); selecting one auto-syncs <code>aspect_ratio</code> into extra params, or choose "Custom Size" for manual width/height. Quality can be low / medium / high; default follows upstream. Count sets tasks per submit.',
+    'guide.s6Title': 'Generate & Manage',
+    'guide.s6Desc': 'Click "Generate" and tasks queue immediately, auto-scheduled by concurrency; cancel anytime, retry on failure. Click a thumbnail to preview, download single images, or view "Details" for the request summary.',
+    'guide.faqTitle': 'FAQ',
+    'guide.faq1Q': 'Why does it say "network error or CORS"?',
+    'guide.faq1A': 'Opening the page via <code>file://</code> makes the browser block API requests by CORS policy. Run <code>npm start</code> and open <code>http://127.0.0.1:8787</code> instead — the page and proxy are then same-origin and requests go through normally.',
+    'guide.faq2Q': 'Will my API Key be uploaded?',
+    'guide.faq2A': 'No. All config stays in your browser localStorage; requests go directly from your browser to the API (or your local proxy).',
+    'guide.faq3Q': 'Where did my Skill templates go?',
+    'guide.faq3A': 'Templates live only in session memory and are cleared on refresh or close — by design, to avoid stale templates. Re-import when needed.',
+    'guide.faq4Q': 'What is the billing based on?',
+    'guide.faq4A': 'GPTEAM Portal request logs. Image billing depends on count, size tier and upscale; see official billing docs for details.',
+    'guide.openConsole': 'Open Console',
+    'about.title': 'About',
+    'about.sub': 'The original intent and philosophy behind this tool.',
+    'about.tagline': 'Someone who never stops exploring',
+    'about.bio': 'What draws me to coding is not "shipping a product", but "making something feel effortless".<br>After AI image tools took off, I kept using OpenAI-compatible APIs but found mainstream platforms either too heavy or missing the small details I use most (like reference reordering, concurrent queue, clear quota). HuaJing was born from that desire for "effortless".',
+    'about.openConsole': 'Open Console',
+    'about.techTitle': 'Tech Stack',
+    'about.techDesc': 'The page is pure front-end (HTML + vanilla JavaScript + CSS) with no frameworks or build tools; all data stays in browser localStorage. A bundled Node local service (<code>main.js</code>) serves the page and forwards API requests, working around browser CORS limits.',
+    'about.productsTitle': 'Other Products',
+    'about.p1Desc': 'This site: a pure front-end OpenAI-compatible image studio with text-to-image, image-to-image, Skill templates, concurrent queue and quota checking.',
+    'about.p2Desc': 'WeChat Mini Program: search "云拍立得" in WeChat — a mini app for making electronic Polaroids.',
+    'settings.title': 'API Settings',
+    'settings.baseUrl': 'Base URL (OpenAI compatible)',
+    'settings.baseUrlPh': 'https://api.openai.com/v1 or your relay address',
+    'settings.proxy': 'Local Proxy (served by the local service started with npm start; leave empty to call the API directly)',
+    'settings.proxyPh': 'http://127.0.0.1:8787, leave empty for direct',
+    'settings.model': 'Model',
+    'settings.modelPh': 'e.g. dall-e-3 / gpt-image-1 / doubao-seedream',
+    'settings.concurrency': 'Concurrency',
+    'settings.extra': 'Extra Params (JSON, optional, merged into request body)',
+    'settings.extraPh': 'e.g. {"response_format":"b64_json","quality":"high"}',
+    'settings.test': 'Test Connection',
+    'settings.caps': 'Read Capabilities',
+    'settings.usage': 'Check Quota',
+    'settings.hint': 'Config is auto-saved in browser localStorage, visible only on this machine. Both the page and the proxy are served by the local service (<b>npm start</b>), so requests are same-origin. If it is not running, run <b>npm start</b> in the project folder and open http://127.0.0.1:8787.',
+    'console.create': 'Create',
+    'console.connTitle': 'API connectivity (click to check)',
+    'console.quotaTitle': 'Remaining quota (click to refresh)',
+    'console.settings': 'Settings',
+    'console.skill': 'Template',
+    'console.import': 'Import',
+    'console.clear': 'Clear',
+    'console.clearTitle': 'Clear templates, prompt and references',
+    'console.promptPh': 'Describe the image you want, e.g. a Shiba Inu running under a starry sky, cyberpunk style',
+    'console.refLabel': 'References <span class="ref-sub">(optional, index = param order)</span>',
+    'console.addRef': 'Add reference image',
+    'console.size': 'Size',
+    'console.customSize': 'Custom Size',
+    'console.width': 'W',
+    'console.height': 'H',
+    'console.quality': 'Quality',
+    'console.qualityTitle': 'Quality tier (default = not sent, follows upstream)',
+    'console.qualityDefault': 'Default (follow upstream)',
+    'console.count': 'Count',
+    'console.generate': 'Generate',
+    'console.hint': 'Ctrl+Enter to generate · Tasks queue immediately after submit; you can keep submitting, concurrency controls how many run at once.',
+    'console.noTask': 'No tasks yet',
+    'console.cancelPending': 'Cancel Queued',
+    'console.clearFinished': 'Clear Finished',
+    'console.empty': 'No tasks yet — enter a prompt to start generating',
+    'lightbox.download': 'Download',
+    'lightbox.close': 'Close',
+    'pill.conn': 'Conn',
+    'pill.quota': 'Quota',
+    'pill.ok': 'OK',
+    'pill.fail': 'Fail',
+    'pill.none': 'Not set',
+    'pill.queryFail': 'Query failed',
+    'pill.refresh': 'click to refresh',
+    'pill.check': 'click to check',
+    'pill.connOkTitle': 'API connectivity OK (click to check)',
+    'pill.connFailTitle': 'Connection failed',
+    'pill.quotaRefreshTitle': 'Remaining quota (click to refresh)'
+  }
+};
+let currentLang = localStorage.getItem('aiImgTool.lang') || 'zh';
+function t(key){ return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.zh && I18N.zh[key]) || key; }
+function setLang(lang){
+  if(!I18N[lang]) lang = 'zh';
+  currentLang = lang;
+  localStorage.setItem('aiImgTool.lang', lang);
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.title = lang === 'zh' ? '画境 · AI 生图工具' : 'HuaJing · AI Image Studio';
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    const v = t(k);
+    if(v !== k) el.textContent = v;
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    const k = el.getAttribute('data-i18n-html');
+    const v = t(k);
+    if(v !== k) el.innerHTML = v;
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    const k = el.getAttribute('data-i18n-ph');
+    const v = t(k);
+    if(v !== k) el.placeholder = v;
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const k = el.getAttribute('data-i18n-title');
+    const v = t(k);
+    if(v !== k) el.title = v;
+  });
+  document.querySelectorAll('#langSwitch span').forEach(s => {
+    s.classList.toggle('active', s.dataset.lang === lang);
+  });
+  refreshConnPill(false);
+  refreshQuotaPill(false);
+  if(typeof refreshTaskTexts === 'function') refreshTaskTexts();
+}
+document.getElementById('langSwitch').addEventListener('click', e => {
+  const sp = e.target.closest('[data-lang]');
+  if(!sp) return;
+  setLang(sp.dataset.lang);
+});
+
+/* ---------- 初始化 ---------- */
+loadCfg();
+loadSkills();
+syncAspectRatio();   // 首次加载即按当前尺寸联动填充 aspect_ratio
+updateStats();
+refreshConnPill(false);
+refreshQuotaPill(false);
+setLang(currentLang);
+</script>
+</body>
+</html>

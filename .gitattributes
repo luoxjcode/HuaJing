@@ -1,0 +1,20 @@
+# 统一按文本处理，仓库内一律以 LF 存储，避免跨平台换行符抖动
+* text=auto eol=lf
+
+# 显式声明为文本
+*.html text
+*.js   text
+*.json text
+*.md   text
+*.yml  text
+*.yaml text
+
+# 二进制资源不做换行符转换，防止图片被改坏
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary

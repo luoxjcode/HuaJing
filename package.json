@@ -1,0 +1,35 @@
+{
+  "name": "huajing",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "画境 · AI 生图工具：零依赖的 OpenAI 兼容生图工作台，由本地 Node 服务托管页面并转发接口请求",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SeekerLo/huajing.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SeekerLo/huajing/issues"
+  },
+  "homepage": "https://github.com/SeekerLo/huajing#readme",
+  "author": "SeekerLo",
+  "keywords": [
+    "ai",
+    "image-generation",
+    "text-to-image",
+    "image-to-image",
+    "openai",
+    "gpt-image",
+    "dall-e",
+    "prompt-template",
+    "zero-dependency",
+    "nodejs"
+  ]
+}

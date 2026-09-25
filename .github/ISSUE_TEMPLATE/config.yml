@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 先看使用说明
+    url: https://github.com/SeekerLo/huajing#readme
+    about: README 的「快速开始」与「跨域（CORS）问题」章节能解决大部分上手问题
+  - name: GPTEAM 接口文档
+    url: https://portal.gpteamservices.com/portal/docs/api/image-edits
+    about: 接口参数、错误码与计费请查阅官方文档
